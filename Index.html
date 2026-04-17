@@ -335,7 +335,7 @@ function RecipeForm({initial,pantry,onSave,onCancel}){
       <div><label style={lSt}>Måltidstype</label><select style={iSt} value={r.mealType} onChange={e=>setF("mealType",e.target.value)}>{MEAL_TYPES.map(m=><option key={m}>{m}</option>)}</select></div>
       <div><label style={lSt}>Kategori</label><select style={iSt} value={r.category} onChange={e=>setF("category",e.target.value)}>{CATEGORIES.map(c=><option key={c}>{c}</option>)}</select></div>
       <div><label style={lSt}>Varm / kald</label><select style={iSt} value={r.tempType||"Varmmat"} onChange={e=>setF("tempType",e.target.value)}>{TEMP_TYPES.map(t=><option key={t}>{t}</option>)}</select></div>
-      <div><label style={lSt}>Porsjoner</label><input style={{...iSt,width:80}} type="number" min={1} value={r.servings} onChange={e=>setF("servings",parseInt(e.target.value)||1)}/></div>
+      <div><label style={lSt}>Porsjoner</label><input style={{...iSt,width:80}} type="number" min={1} value={r.servings} onChange={e=>{const v=e.target.value;setF("servings",v===""?"":parseInt(v)||1);}} onBlur={e=>{if(!e.target.value||parseInt(e.target.value)<1)setF("servings",1);}}/></div>
     </div>
 
     {/* Storage info */}
