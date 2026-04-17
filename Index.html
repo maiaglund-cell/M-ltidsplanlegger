@@ -304,7 +304,7 @@ function PantryTab({uid,pantry,setPantry,visibleNutr}){
   const usedCategories=["Alle",...PANTRY_CATEGORIES.filter(c=>pantry.some(p=>(p.pantryCategory||"Annet")===c))];
   const groups={};filtered.forEach(p=>{const t=p.pantryCategory||"Annet";if(!groups[t])groups[t]=[];groups[t].push(p);});
 
-  const categoryIcons={"Meieri":"🥛","Kjøtt & fisk":"🥩","Grønnsaker & frukt":"🥦","Tørrvarer":"🌾","Krydder & saus":"🧂","Brød & bakevarer":"🍞","Drikke":"🥤","Frysevarer":"❄️","Hermetikk":"🥫","Snacks & godteri":"🍿","Annet":"📦"};
+  const categoryIcons={"Meieri & egg":"🥛","Kjøtt & kylling":"🥩","Fisk & skalldyr":"🐟","Frukt & grønt":"🥦","Pålegg & frokost":"🍳","Tørrvarer":"🌾","Bakevarer & kjeks":"🍞","Søtt & godteri":"🍫","Krydder & saus":"🧂","Drikke":"🥤","Frysevarer":"❄️","Hermetikk":"🥫","Annet":"📦"};
 
   return <div>
     <div style={{display:"flex",gap:8,marginBottom:12,alignItems:"center",flexWrap:"wrap"}}>
