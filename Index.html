@@ -72,10 +72,12 @@ const ALL_NUTR = [
 const iSt = { border:"1.5px solid #E8E0D0",borderRadius:8,padding:"6px 10px",background:"#FFFDF8",color:"#4A4035",fontFamily:"Lato, sans-serif",fontSize:13,outline:"none",width:"100%",boxSizing:"border-box" };
 const lSt = { fontSize:11,color:"#9E8E78",fontFamily:"Lato, sans-serif",marginBottom:3,display:"block" };
 
+const PANTRY_CATEGORIES = ["Meieri","Kjøtt & fisk","Grønnsaker & frukt","Tørrvarer","Krydder & saus","Brød & bakevarer","Drikke","Frysevarer","Hermetikk","Snacks & godteri","Annet"];
+
 const emptyWeekPlan = () => Object.fromEntries(DAYS.map(d=>[d,Object.fromEntries(MEAL_TYPES.map(m=>[m,[]]))]));
 const emptyIng = () => ({name:"",amount:"",unit:"",kcal:"",protein:"",fat:"",saturated:"",carbs:"",sugar:"",fiber:"",salt:"",pantryId:null});
 const emptyRecipe = () => ({name:"",category:"Kaloriunderskudd",mealType:"Middag",tempType:"Varmmat",servings:1,ingredients:[emptyIng()],steps:[""],image:null,canFreeze:false,fridgeDays:"",freezeDays:"",needsCold:false,favorite:false});
-const emptyPantry = () => ({brandName:"",genericTag:"",unit:"g",kcalPer100:"",proteinPer100:"",fatPer100:"",saturatedPer100:"",carbsPer100:"",sugarPer100:"",fiberPer100:"",saltPer100:"",allergens:[],notes:"",image:null,favorite:false});
+const emptyPantry = () => ({brandName:"",genericTag:"",unit:"g",pantryCategory:"Annet",kcalPer100:"",proteinPer100:"",fatPer100:"",saturatedPer100:"",carbsPer100:"",sugarPer100:"",fiberPer100:"",saltPer100:"",allergens:[],notes:"",image:null,favorite:false});
 
 function calcNutr(ings,srv=1){
   const t={};ALL_NUTR.forEach(f=>{t[f.key]=0;});
@@ -214,14 +216,19 @@ function PantryForm({initial,onSave,onCancel}){
         <div style={{gridColumn:"1/-1"}}><label style={lSt}>Produkt- / merkenavn</label><input style={iSt} value={it.brandName} onChange={e=>setF("brandName",e.target.value)} placeholder="F.eks. TINE Meierismør"/></div>
         <div><label style={lSt}>Generisk tag #</label><div style={{position:"relative"}}><span style={{position:"absolute",left:9,top:"50%",transform:"translateY(-50%)",color:P.tealDk,fontWeight:700}}>#</span><input style={{...iSt,paddingLeft:20}} value={it.genericTag} onChange={e=>setF("genericTag",e.target.value)} placeholder="Smør"/></div></div>
         <div><label style={lSt}>Enhet</label><input style={iSt} value={it.unit} onChange={e=>setF("unit",e.target.value)} placeholder="g"/></div>
+        <div style={{gridColumn:"1/-1"}}><label style={lSt}>Kategori</label><select style={iSt} value={it.pantryCategory||"Annet"} onChange={e=>setF("pantryCategory",e.target.value)}>{PANTRY_CATEGORIES.map(c=><option key={c}>{c}</option>)}</select></div>
       </div>
 
       {/* Nutrition photo helper */}
       <div style={{marginBottom:14,background:P.bg,borderRadius:10,padding:"10px 12px"}}>
-        <div style={{fontSize:11,color:P.muted,fontFamily:"Lato",marginBottom:6}}>Ta bilde av næringsinnhold for referanse</div>
-        <input type="file" accept="image/*" capture="environment" style={{display:"none"}} id="nutr-photo" onChange={e=>{if(e.target.files[0])handleNutrPhoto(e.target.files[0]);}}/>
-        <label htmlFor="nutr-photo" style={{display:"inline-flex",alignItems:"center",gap:6,background:P.teal,border:"none",borderRadius:8,padding:"6px 12px",cursor:"pointer",fontFamily:"Lato",fontSize:12,color:P.text}}>📷 Foto av næringsinnhold</label>
-        {it.nutrPhotoRef&&<span style={{fontSize:11,color:P.tealDk,marginLeft:8,fontFamily:"Lato"}}>✓ Bilde lagret</span>}
+        <div style={{fontSize:11,color:P.muted,fontFamily:"Lato",marginBottom:8}}>Ta bilde av næringsinnhold for referanse</div>
+        <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+          <input type="file" accept="image/*" style={{display:"none"}} id="nutr-photo-lib" onChange={e=>{if(e.target.files[0])handleNutrPhoto(e.target.files[0]);}}/>
+          <label htmlFor="nutr-photo-lib" style={{display:"inline-flex",alignItems:"center",gap:6,background:P.purple,border:`1.5px dashed ${P.purpleDk}`,borderRadius:8,padding:"6px 12px",cursor:"pointer",fontFamily:"Lato",fontSize:12,color:P.text}}>🖼 Velg fra bibliotek</label>
+          <input type="file" accept="image/*" capture="environment" style={{display:"none"}} id="nutr-photo-cam" onChange={e=>{if(e.target.files[0])handleNutrPhoto(e.target.files[0]);}}/>
+          <label htmlFor="nutr-photo-cam" style={{display:"inline-flex",alignItems:"center",gap:6,background:P.teal,border:"none",borderRadius:8,padding:"6px 12px",cursor:"pointer",fontFamily:"Lato",fontSize:12,color:P.text}}>📷 Ta bilde</label>
+        </div>
+        {it.nutrPhotoRef&&<span style={{fontSize:11,color:P.tealDk,marginTop:6,display:"block",fontFamily:"Lato"}}>✓ Bilde lagret som referanse</span>}
       </div>
 
       <div style={{marginBottom:14}}>
@@ -254,46 +261,64 @@ function PantryTab({uid,pantry,setPantry,visibleNutr}){
   const [editing,setEditing]=useState(null);
   const [search,setSearch]=useState("");
   const [showFavOnly,setShowFavOnly]=useState(false);
+  const [activeCategory,setActiveCategory]=useState("Alle");
 
   const save=async(it)=>{
     const data={...it};
     if(editing){
       await updateDoc(doc(db,"users",uid,"pantry",editing.id),data);
-      setPantry(p=>p.map(x=>x.id===editing.id?{...data,id:editing.id}:x));
     } else {
-      const ref=await addDoc(collection(db,"users",uid,"pantry"),data);
-      setPantry(p=>[...p,{...data,id:ref.id}]);
+      await addDoc(collection(db,"users",uid,"pantry"),data);
     }
+    // onSnapshot in App handles the UI update automatically — no manual setPantry needed
     setForm(false);setEditing(null);
   };
 
-  const del=async(id)=>{if(window.confirm("Slett?")){{await deleteDoc(doc(db,"users",uid,"pantry",id));setPantry(p=>p.filter(x=>x.id!==id));}}};
+  const del=async(id)=>{if(window.confirm("Slett?"))await deleteDoc(doc(db,"users",uid,"pantry",id));};
 
   const toggleFav=async(it)=>{
-    const upd={...it,favorite:!it.favorite};
-    await updateDoc(doc(db,"users",uid,"pantry",it.id),{favorite:upd.favorite});
-    setPantry(p=>p.map(x=>x.id===it.id?upd:x));
+    await updateDoc(doc(db,"users",uid,"pantry",it.id),{favorite:!it.favorite});
   };
 
   if(form||editing)return <PantryForm initial={editing} onSave={save} onCancel={()=>{setForm(false);setEditing(null);}}/>;
 
   let filtered=pantry.filter(p=>!search||p.brandName.toLowerCase().includes(search.toLowerCase())||p.genericTag.toLowerCase().includes(search.toLowerCase()));
   if(showFavOnly)filtered=filtered.filter(p=>p.favorite);
-  const groups={};filtered.forEach(p=>{const t=p.genericTag||"Ukategorisert";if(!groups[t])groups[t]=[];groups[t].push(p);});
+  if(activeCategory!=="Alle")filtered=filtered.filter(p=>(p.pantryCategory||"Annet")===activeCategory);
+
+  // Group by pantryCategory
+  const usedCategories=["Alle",...PANTRY_CATEGORIES.filter(c=>pantry.some(p=>(p.pantryCategory||"Annet")===c))];
+  const groups={};filtered.forEach(p=>{const t=p.pantryCategory||"Annet";if(!groups[t])groups[t]=[];groups[t].push(p);});
+
+  const categoryIcons={"Meieri":"🥛","Kjøtt & fisk":"🥩","Grønnsaker & frukt":"🥦","Tørrvarer":"🌾","Krydder & saus":"🧂","Brød & bakevarer":"🍞","Drikke":"🥤","Frysevarer":"❄️","Hermetikk":"🥫","Snacks & godteri":"🍿","Annet":"📦"};
 
   return <div>
-    <div style={{display:"flex",gap:8,marginBottom:14,alignItems:"center",flexWrap:"wrap"}}>
+    <div style={{display:"flex",gap:8,marginBottom:12,alignItems:"center",flexWrap:"wrap"}}>
       <input style={{...iSt,flex:1,minWidth:120}} placeholder="🔍 Søk…" value={search} onChange={e=>setSearch(e.target.value)}/>
       <button onClick={()=>setShowFavOnly(x=>!x)} style={{background:showFavOnly?"#FFF9C4":P.card,border:`1.5px solid ${showFavOnly?"#F9A825":P.border}`,borderRadius:10,padding:"6px 12px",cursor:"pointer",fontFamily:"Lato",fontSize:12,color:P.text}}>⭐ Favoritter</button>
       <button onClick={()=>setForm(true)} style={{background:P.tealDk,border:"none",borderRadius:10,padding:"7px 14px",cursor:"pointer",fontFamily:"Lato",color:"#fff",fontWeight:700,fontSize:13,whiteSpace:"nowrap"}}>+ Ny vare</button>
     </div>
 
-    {filtered.length===0&&<div style={{textAlign:"center",padding:"50px 0",color:P.muted}}><div style={{fontSize:44,marginBottom:10}}>🫙</div><div style={{fontFamily:"Playfair Display",fontSize:17}}>Spiskammeret er tomt</div></div>}
+    {/* Category tabs */}
+    <div style={{display:"flex",gap:5,flexWrap:"wrap",marginBottom:16}}>
+      {usedCategories.map(c=><button key={c} onClick={()=>setActiveCategory(c)} style={{background:activeCategory===c?P.tealDk:P.card,border:`1.5px solid ${activeCategory===c?P.tealDk:P.border}`,borderRadius:20,padding:"5px 12px",cursor:"pointer",fontFamily:"Lato",fontSize:12,color:activeCategory===c?"#fff":P.text,whiteSpace:"nowrap"}}>
+        {c==="Alle"?"🗂 Alle":categoryIcons[c]+" "+c}
+      </button>)}
+    </div>
 
-    {Object.entries(groups).sort(([a],[b])=>a.localeCompare(b,"no")).map(([tag,items])=><div key={tag} style={{marginBottom:20}}>
-      <div style={{marginBottom:7}}><span style={{background:P.teal,borderRadius:20,padding:"2px 12px",fontSize:12,fontWeight:700,color:P.tealDk,fontFamily:"Lato"}}>#{tag}</span></div>
+    {filtered.length===0&&<div style={{textAlign:"center",padding:"50px 0",color:P.muted}}><div style={{fontSize:44,marginBottom:10}}>🫙</div><div style={{fontFamily:"Playfair Display",fontSize:17}}>Ingenting her ennå</div></div>}
+
+    {(activeCategory==="Alle"
+      ? PANTRY_CATEGORIES.filter(c=>groups[c]?.length>0)
+      : [activeCategory]
+    ).map(cat=><div key={cat} style={{marginBottom:22}}>
+      <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:9}}>
+        <span style={{fontSize:18}}>{categoryIcons[cat]}</span>
+        <span style={{fontFamily:"Playfair Display",fontSize:15,color:P.text,fontWeight:600}}>{cat}</span>
+        <span style={{fontSize:11,color:P.muted,fontFamily:"Lato"}}>({groups[cat]?.length||0})</span>
+      </div>
       <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(240px,1fr))",gap:8}}>
-        {items.map(it=><div key={it.id} style={{background:P.card,border:`1.5px solid ${P.teal}`,borderRadius:12,padding:"11px 13px",position:"relative"}}>
+        {(groups[cat]||[]).map(it=><div key={it.id} style={{background:P.card,border:`1.5px solid ${P.teal}`,borderRadius:12,padding:"11px 13px",position:"relative"}}>
           <div style={{display:"flex",gap:10,marginBottom:7,alignItems:"flex-start"}}>
             {it.image&&<img src={it.image} style={{width:44,height:44,borderRadius:8,objectFit:"cover",flexShrink:0}} alt=""/>}
             <div style={{flex:1,minWidth:0}}>
