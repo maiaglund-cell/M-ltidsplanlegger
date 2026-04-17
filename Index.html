@@ -136,20 +136,57 @@ function NutrBadges({nutr,visibleNutr,compact=false}){
 function IngInput({value,pantry,onChange,onSelect}){
   const [open,setOpen]=useState(false);
   const ref=useRef();
-  const matches=value.trim()?pantry.filter(p=>p.brandName.toLowerCase().includes(value.toLowerCase())||p.genericTag.toLowerCase().includes(value.toLowerCase())):[];
-  useEffect(()=>{const h=e=>{if(ref.current&&!ref.current.contains(e.target))setOpen(false);};document.addEventListener("mousedown",h);return()=>document.removeEventListener("mousedown",h);},[]);
-  return <div ref={ref} style={{position:"relative"}}>
-    <input style={iSt} placeholder="Ingrediens…" value={value} onChange={e=>{onChange(e.target.value);setOpen(true);}} onFocus={()=>setOpen(true)}/>
-    {open&&matches.length>0&&<div style={{position:"absolute",top:"calc(100% + 2px)",left:0,right:0,background:P.card,border:`1px solid ${P.border}`,borderRadius:10,zIndex:300,boxShadow:"0 4px 18px rgba(0,0,0,0.1)",maxHeight:200,overflowY:"auto"}}>
-      {matches.map(p=><div key={p.id} onMouseDown={()=>{onSelect(p);setOpen(false);}} style={{padding:"7px 12px",cursor:"pointer",borderBottom:`1px solid ${P.border}`,display:"flex",gap:8,alignItems:"center"}} onMouseEnter={e=>e.currentTarget.style.background=P.bg} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
-        {p.image&&<img src={p.image} style={{width:32,height:32,borderRadius:6,objectFit:"cover"}} alt=""/>}
-        <div>
-          <div style={{fontFamily:"Lato",fontSize:13,fontWeight:700,color:P.text}}>{p.brandName}</div>
-          {p.genericTag&&<div style={{fontSize:10,color:P.tealDk}}>#{p.genericTag}</div>}
-          <div style={{fontSize:10,color:P.muted}}>{p.kcalPer100} kcal per 100{p.unit}</div>
-        </div>
-      </div>)}
-    </div>}
+  const matches=value.trim()
+    ? pantry.filter(p=>
+        p.brandName.toLowerCase().includes(value.toLowerCase()) ||
+        (p.genericTag||"").toLowerCase().includes(value.toLowerCase())
+      )
+    : [];
+
+  useEffect(()=>{
+    const h=e=>{if(ref.current&&!ref.current.contains(e.target))setOpen(false);};
+    document.addEventListener("mousedown",h);
+    return()=>document.removeEventListener("mousedown",h);
+  },[]);
+
+  return <div ref={ref} style={{position:"relative",zIndex:200}}>
+    <input
+      style={iSt}
+      placeholder="Ingrediens…"
+      value={value}
+      onChange={e=>{onChange(e.target.value);setOpen(true);}}
+      onFocus={()=>setOpen(true)}
+      autoComplete="off"
+      autoCorrect="off"
+      spellCheck={false}
+    />
+    {open&&matches.length>0&&(
+      <div style={{
+        position:"absolute",top:"100%",left:0,right:0,marginTop:2,
+        background:P.card,border:`1.5px solid ${P.tealDk}`,
+        borderRadius:12,zIndex:9999,
+        boxShadow:"0 6px 24px rgba(0,0,0,0.15)",
+        maxHeight:240,overflowY:"auto",
+        minWidth:220,
+      }}>
+        {matches.map(p=>(
+          <div
+            key={p.id}
+            onPointerDown={e=>{e.preventDefault();onSelect(p);setOpen(false);}}
+            style={{padding:"9px 13px",cursor:"pointer",borderBottom:`1px solid ${P.border}`,display:"flex",gap:9,alignItems:"center"}}
+            onMouseEnter={e=>e.currentTarget.style.background=P.bg}
+            onMouseLeave={e=>e.currentTarget.style.background="transparent"}
+          >
+            {p.image&&<img src={p.image} style={{width:34,height:34,borderRadius:7,objectFit:"cover",flexShrink:0}} alt=""/>}
+            <div>
+              <div style={{fontFamily:"Lato",fontSize:13,fontWeight:700,color:P.text}}>{p.brandName}</div>
+              {p.genericTag&&<div style={{fontSize:11,color:P.tealDk}}>#{p.genericTag}</div>}
+              <div style={{fontSize:10,color:P.muted}}>{p.kcalPer100||"—"} kcal · {p.proteinPer100||"—"}g P · {p.fatPer100||"—"}g F per 100{p.unit}</div>
+            </div>
+          </div>
+        ))}
+      </div>
+    )}
   </div>;
 }
 
@@ -410,11 +447,15 @@ function RecipeForm({initial,pantry,onSave,onCancel}){
     {/* Ingredients */}
     <div style={{marginBottom:18}}>
       <div style={{display:"flex",justifyContent:"space-between",marginBottom:8}}><h4 style={{margin:0,fontFamily:"Playfair Display",color:P.text}}>Ingredienser</h4><button onClick={()=>setF("ingredients",[...r.ingredients,emptyIng()])} style={{background:P.green,border:"none",borderRadius:8,padding:"4px 12px",cursor:"pointer",fontFamily:"Lato",color:P.text,fontSize:12}}>+ Legg til</button></div>
-      <div style={{overflowX:"auto"}}>
+      <div style={{overflowX:"auto",overflowY:"visible",paddingBottom:4}}>
         <div style={{display:"grid",gridTemplateColumns:cols,gap:4,marginBottom:4,minWidth:900}}>{["Ingrediens","Mengde","Enhet","Kcal","Prot","Fett","M.fett","Karbo","Sukker","Fiber","Salt",""].map((h,i)=><div key={i} style={{fontSize:10,color:P.muted,fontFamily:"Lato"}}>{h}</div>)}</div>
         {r.ingredients.map((ing,i)=>{const linked=ing.pantryId?pantry.find(p=>p.id===ing.pantryId):null;return <div key={i} style={{marginBottom:5}}>
           <div style={{display:"grid",gridTemplateColumns:cols,gap:4,minWidth:900}}>
-            <IngInput value={ing.name} pantry={pantry} onChange={v=>{setIng(i,"name",v);if(!v)setIng(i,"pantryId",null);}} onSelect={p=>selPantry(i,p)}/>
+            <IngInput value={ing.name} pantry={pantry} onChange={v=>{
+              const a=[...r.ingredients];
+              a[i]={...a[i],name:v,pantryId:v?a[i].pantryId:null};
+              setF("ingredients",a);
+            }} onSelect={p=>selPantry(i,p)}/>
             <input style={iSt} placeholder="100" value={ing.amount} onChange={e=>handleAmt(i,e.target.value)}/>
             <input style={iSt} placeholder="g" value={ing.unit} onChange={e=>setIng(i,"unit",e.target.value)}/>
             {["kcal","protein","fat","saturated","carbs","sugar","fiber","salt"].map(k=><input key={k} style={{...iSt,background:linked?"#EEF8EE":P.card}} type="number" placeholder="—" value={ing[k]} onChange={e=>setIng(i,k,e.target.value)}/>)}
