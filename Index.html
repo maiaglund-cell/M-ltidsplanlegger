@@ -5,704 +5,876 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
   <title>Måltidsplanlegger</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=Lato:wght@300;400;700&display=swap" rel="stylesheet">
   <style>
     *{box-sizing:border-box;margin:0;padding:0;}
     body{background:#F5F0E8;font-family:'Lato',sans-serif;}
     #root{min-height:100vh;}
+    ::-webkit-scrollbar{width:5px;}
+    ::-webkit-scrollbar-thumb{background:#E8E0D0;border-radius:3px;}
   </style>
 </head>
 <body>
-  <div id="root"></div>
+<div id="root"></div>
 
-  <!-- Firebase -->
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+  import { getAuth, onAuthStateChanged, signOut, createUserWithEmailAndPassword, signInWithEmailAndPassword, signInWithPopup, GoogleAuthProvider, updateProfile } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+  import { getFirestore, doc, setDoc, getDoc, collection, addDoc, updateDoc, deleteDoc, onSnapshot, query } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+  window.__fb = { initializeApp, getAuth, onAuthStateChanged, signOut, createUserWithEmailAndPassword, signInWithEmailAndPassword, signInWithPopup, GoogleAuthProvider, updateProfile, getFirestore, doc, setDoc, getDoc, collection, addDoc, updateDoc, deleteDoc, onSnapshot, query };
+  window.__fbReady = true;
+  document.dispatchEvent(new Event('fbReady'));
+</script>
 
-  <script type="module">
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-    import { getAuth, onAuthStateChanged, signOut, createUserWithEmailAndPassword, signInWithEmailAndPassword, signInWithPopup, GoogleAuthProvider } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
-    import { getFirestore, doc, setDoc, getDoc, collection, addDoc, updateDoc, deleteDoc, onSnapshot, query } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+<script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
 
-    // Make Firebase available globally for React code
-    window.__firebase = {
-      initializeApp, getAuth, onAuthStateChanged, signOut,
-      createUserWithEmailAndPassword, signInWithEmailAndPassword,
-      signInWithPopup, GoogleAuthProvider,
-      getFirestore, doc, setDoc, getDoc, collection,
-      addDoc, updateDoc, deleteDoc, onSnapshot, query
-    };
-    window.__firebaseReady = true;
-    document.dispatchEvent(new Event('firebaseReady'));
-  </script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
 
-  <!-- React + Babel -->
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 
-  <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script type="text/babel" data-type="module">
+const { useState, useEffect, useRef, useCallback } = React;
 
-  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+await new Promise(r => { if(window.__fbReady){r();}else{document.addEventListener('fbReady',r,{once:true});}});
 
-  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+const { initializeApp, getAuth, onAuthStateChanged, signOut, createUserWithEmailAndPassword, signInWithEmailAndPassword, signInWithPopup, GoogleAuthProvider, updateProfile, getFirestore, doc, setDoc, getDoc, collection, addDoc, updateDoc, deleteDoc, onSnapshot, query } = window.__fb;
 
-  <script type="text/babel" data-type="module">
-    const { useState, useEffect, useRef } = React;
+const FB_CFG = { apiKey:"AIzaSyChy4t6NZPuKzNXhxssmoAUhXVwCVKXJWM", authDomain:"maaltidsplanlegger-aa9a6.firebaseapp.com", projectId:"maaltidsplanlegger-aa9a6", storageBucket:"maaltidsplanlegger-aa9a6.firebasestorage.app", messagingSenderId:"48888722293", appId:"1:48888722293:web:5bc47fa4058d265a1d993c" };
+const fbApp = initializeApp(FB_CFG);
+const auth = getAuth(fbApp);
+const db = getFirestore(fbApp);
+const gProvider = new GoogleAuthProvider();
 
-    // Wait for Firebase then boot app
-    function waitForFirebase() {
-      return new Promise(resolve => {
-        if (window.__firebaseReady) { resolve(); return; }
-        document.addEventListener('firebaseReady', resolve, { once: true });
-      });
-    }
+// ─── CONSTANTS ───────────────────────────────────────────────────────────────
+const MEAL_TYPES = ["Frokost","Lunsj","Middag","Mellommåltid","Snacks","Dessert"];
+const DAYS = ["Mandag","Tirsdag","Onsdag","Torsdag","Fredag","Lørdag","Søndag"];
+const CATEGORIES = ["Kaloriunderskudd","Ikke bry deg om kalorier"];
+const ALLERGENS = ["Gluten","Melk","Egg","Nøtter","Peanøtter","Soya","Fisk","Skalldyr","Selleri","Sennep","Sesam","Sulfitter","Lupin","Bløtdyr"];
+const GENDERS = ["Mann","Kvinne","Annet","Ønsker ikke å oppgi"];
+const TEMP_TYPES = ["Varmmat","Kaldmat"];
+const SORT_OPTIONS = ["Standard","Høyest protein","Lavest kalorier","Varmmat","Kaldmat"];
 
-    await waitForFirebase();
+const MC = { Frokost:{bg:"#FFF9C4",border:"#F9A825",icon:"🌅"}, Lunsj:{bg:"#C8E6C9",border:"#388E3C",icon:"🥗"}, Middag:{bg:"#BBDEFB",border:"#1565C0",icon:"🍽️"}, Mellommåltid:{bg:"#F8BBD0",border:"#C2185B",icon:"🍎"}, Snacks:{bg:"#FFCCBC",border:"#E64A19",icon:"🍿"}, Dessert:{bg:"#E1BEE7",border:"#6A1B9A",icon:"🍰"} };
 
-    const {
-      initializeApp, getAuth, onAuthStateChanged, signOut,
-      createUserWithEmailAndPassword, signInWithEmailAndPassword,
-      signInWithPopup, GoogleAuthProvider,
-      getFirestore, doc, setDoc, getDoc, collection,
-      addDoc, updateDoc, deleteDoc, onSnapshot, query
-    } = window.__firebase;
+const P = { bg:"#F5F0E8",card:"#FFFDF8",green:"#C8E6C9",greenDk:"#81C784",pink:"#F8BBD0",blue:"#BBDEFB",yellow:"#FFF9C4",purple:"#E1BEE7",purpleDk:"#CE93D8",peach:"#FFCCBC",teal:"#B2DFDB",tealDk:"#4DB6AC",border:"#E8E0D0",text:"#4A4035",muted:"#9E8E78" };
 
-    const firebaseConfig = {
-      apiKey: "AIzaSyChy4t6NZPuKzNXhxssmoAUhXVwCVKXJWM",
-      authDomain: "maaltidsplanlegger-aa9a6.firebaseapp.com",
-      projectId: "maaltidsplanlegger-aa9a6",
-      storageBucket: "maaltidsplanlegger-aa9a6.firebasestorage.app",
-      messagingSenderId: "48888722293",
-      appId: "1:48888722293:web:5bc47fa4058d265a1d993c",
-    };
+const ALL_NUTR = [
+  {key:"kcal",      label:"Kcal",         unit:"",  color:"#FFF9C4"},
+  {key:"protein",   label:"Protein",      unit:"g", color:"#C8E6C9"},
+  {key:"fat",       label:"Fett",         unit:"g", color:"#FFCCBC"},
+  {key:"saturated", label:"Mettet fett",  unit:"g", color:"#FFE0B2"},
+  {key:"carbs",     label:"Karbohydrater",unit:"g", color:"#BBDEFB"},
+  {key:"sugar",     label:"Sukkerarter",  unit:"g", color:"#F8BBD0"},
+  {key:"fiber",     label:"Fiber",        unit:"g", color:"#DCEDC8"},
+  {key:"salt",      label:"Salt",         unit:"g", color:"#E0E0E0"},
+];
 
-    const fbApp = initializeApp(firebaseConfig);
-    const auth = getAuth(fbApp);
-    const db = getFirestore(fbApp);
-    const googleProvider = new GoogleAuthProvider();
+const iSt = { border:"1.5px solid #E8E0D0",borderRadius:8,padding:"6px 10px",background:"#FFFDF8",color:"#4A4035",fontFamily:"Lato, sans-serif",fontSize:13,outline:"none",width:"100%",boxSizing:"border-box" };
+const lSt = { fontSize:11,color:"#9E8E78",fontFamily:"Lato, sans-serif",marginBottom:3,display:"block" };
 
-    // ─── CONSTANTS ────────────────────────────────────────────────────────────
-    const MEAL_TYPES = ["Frokost","Lunsj","Middag","Mellommåltid","Snacks","Dessert"];
-    const DAYS = ["Mandag","Tirsdag","Onsdag","Torsdag","Fredag","Lørdag","Søndag"];
-    const CATEGORIES = ["Kaloriunderskudd","Ikke bry deg om kalorier"];
-    const ALLERGEN_LIST = ["Gluten","Melk","Egg","Nøtter","Peanøtter","Soya","Fisk","Skalldyr","Selleri","Sennep","Sesam","Sulfitter","Lupin","Bløtdyr"];
-    const GENDER_OPTIONS = ["Mann","Kvinne","Annet","Ønsker ikke å oppgi"];
+const emptyWeekPlan = () => Object.fromEntries(DAYS.map(d=>[d,Object.fromEntries(MEAL_TYPES.map(m=>[m,[]]))]));
+const emptyIng = () => ({name:"",amount:"",unit:"",kcal:"",protein:"",fat:"",saturated:"",carbs:"",sugar:"",fiber:"",salt:"",pantryId:null});
+const emptyRecipe = () => ({name:"",category:"Kaloriunderskudd",mealType:"Middag",tempType:"Varmmat",servings:1,ingredients:[emptyIng()],steps:[""],image:null,canFreeze:false,fridgeDays:"",freezeDays:"",needsCold:false,favorite:false});
+const emptyPantry = () => ({brandName:"",genericTag:"",unit:"g",kcalPer100:"",proteinPer100:"",fatPer100:"",saturatedPer100:"",carbsPer100:"",sugarPer100:"",fiberPer100:"",saltPer100:"",allergens:[],notes:"",image:null,favorite:false});
 
-    const MC = {
-      Frokost:      {bg:"#FFF9C4",border:"#F9A825",icon:"🌅"},
-      Lunsj:        {bg:"#C8E6C9",border:"#388E3C",icon:"🥗"},
-      Middag:       {bg:"#BBDEFB",border:"#1565C0",icon:"🍽️"},
-      Mellommåltid: {bg:"#F8BBD0",border:"#C2185B",icon:"🍎"},
-      Snacks:       {bg:"#FFCCBC",border:"#E64A19",icon:"🍿"},
-      Dessert:      {bg:"#E1BEE7",border:"#6A1B9A",icon:"🍰"},
-    };
+function calcNutr(ings,srv=1){
+  const t={};ALL_NUTR.forEach(f=>{t[f.key]=0;});
+  ings.forEach(i=>{ALL_NUTR.forEach(f=>{t[f.key]+=parseFloat(i[f.key])||0;});});
+  const o={};ALL_NUTR.forEach(f=>{o[f.key]=Math.round(t[f.key]/(srv||1)*10)/10;});
+  o.kcal=Math.round(t.kcal/(srv||1));return o;
+}
+function autoNutr(amt,p){
+  const a=parseFloat(amt)||0;if(!p||a===0)return null;
+  const o={};ALL_NUTR.forEach(f=>{const k=f.key==="kcal"?"kcalPer100":`${f.key}Per100`;o[f.key]=f.key==="kcal"?Math.round((parseFloat(p[k])||0)*a/100):Math.round((parseFloat(p[k])||0)*a/100*10)/10;});
+  return o;
+}
+function getEntries(wp,d,mt){return(wp[d]?.[mt]||[]).map(e=>typeof e==="object"?e:{rid:e,portions:1});}
+function getWeekKey(off=0){const n=new Date();n.setDate(n.getDate()+off*7);const j=new Date(n.getFullYear(),0,1);const w=Math.ceil(((n-j)/86400000+j.getDay()+1)/7);return `${n.getFullYear()}-W${String(w).padStart(2,"0")}`;}
+function weekLabel(k){const[y,w]=k.split("-W");return `Uke ${parseInt(w)}, ${y}`;}
 
-    const P = {
-      bg:"#F5F0E8",card:"#FFFDF8",green:"#C8E6C9",greenDk:"#81C784",
-      pink:"#F8BBD0",blue:"#BBDEFB",yellow:"#FFF9C4",purple:"#E1BEE7",
-      purpleDk:"#CE93D8",peach:"#FFCCBC",teal:"#B2DFDB",tealDk:"#4DB6AC",
-      border:"#E8E0D0",text:"#4A4035",muted:"#9E8E78",
-    };
+function imgToBase64(file){return new Promise(r=>{const rd=new FileReader();rd.onload=e=>r(e.target.result);rd.readAsDataURL(file);});}
 
-    const NUTR_FIELDS = [
-      {key:"kcal",      label:"Kcal",         unit:"",  color:"#FFF9C4", always:true},
-      {key:"protein",   label:"Protein",      unit:"g", color:"#C8E6C9", always:true},
-      {key:"fat",       label:"Fett",         unit:"g", color:"#FFCCBC", always:true},
-      {key:"saturated", label:"Mettet fett",  unit:"g", color:"#FFCCBC", always:false},
-      {key:"carbs",     label:"Karbohydrater",unit:"g", color:"#BBDEFB", always:true},
-      {key:"sugar",     label:"Sukkerarter",  unit:"g", color:"#F8BBD0", always:false},
-      {key:"fiber",     label:"Fiber",        unit:"g", color:"#DCEDC8", always:true},
-      {key:"salt",      label:"Salt",         unit:"g", color:"#E0E0E0", always:false},
-    ];
+// ─── NUTR BADGES ─────────────────────────────────────────────────────────────
+function Badge({label,value,unit,color}){
+  return <div style={{background:color,borderRadius:10,padding:"4px 9px",textAlign:"center",minWidth:52}}>
+    <div style={{fontSize:10,color:P.muted,fontFamily:"Lato"}}>{label}</div>
+    <div style={{fontSize:13,fontWeight:700,color:P.text}}>{value}<span style={{fontSize:9,fontWeight:400}}>{unit}</span></div>
+  </div>;
+}
+function NutrBadges({nutr,visibleNutr,compact=false}){
+  const fields = compact
+    ? ALL_NUTR.filter(f=>["kcal","protein","fat","carbs","fiber"].includes(f.key))
+    : ALL_NUTR;
+  return <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
+    {fields.map(f=>{
+      if(visibleNutr && !visibleNutr[f.key]) return null;
+      const v=nutr[f.key];
+      if(v===undefined||v===null) return null;
+      if(!compact && (v===0||v==="")) return null;
+      return <Badge key={f.key} label={f.label} value={v??0} unit={f.unit} color={f.color}/>;
+    })}
+  </div>;
+}
 
-    const iSt = {
-      border:"1.5px solid #E8E0D0",borderRadius:8,padding:"6px 10px",
-      background:"#FFFDF8",color:"#4A4035",fontFamily:"Lato, sans-serif",
-      fontSize:13,outline:"none",width:"100%",boxSizing:"border-box",
-    };
-    const lSt = {fontSize:11,color:"#9E8E78",fontFamily:"Lato, sans-serif",marginBottom:3,display:"block"};
+// ─── INGREDIENT AUTOCOMPLETE ─────────────────────────────────────────────────
+function IngInput({value,pantry,onChange,onSelect}){
+  const [open,setOpen]=useState(false);
+  const ref=useRef();
+  const matches=value.trim()?pantry.filter(p=>p.brandName.toLowerCase().includes(value.toLowerCase())||p.genericTag.toLowerCase().includes(value.toLowerCase())):[];
+  useEffect(()=>{const h=e=>{if(ref.current&&!ref.current.contains(e.target))setOpen(false);};document.addEventListener("mousedown",h);return()=>document.removeEventListener("mousedown",h);},[]);
+  return <div ref={ref} style={{position:"relative"}}>
+    <input style={iSt} placeholder="Ingrediens…" value={value} onChange={e=>{onChange(e.target.value);setOpen(true);}} onFocus={()=>setOpen(true)}/>
+    {open&&matches.length>0&&<div style={{position:"absolute",top:"calc(100% + 2px)",left:0,right:0,background:P.card,border:`1px solid ${P.border}`,borderRadius:10,zIndex:300,boxShadow:"0 4px 18px rgba(0,0,0,0.1)",maxHeight:200,overflowY:"auto"}}>
+      {matches.map(p=><div key={p.id} onMouseDown={()=>{onSelect(p);setOpen(false);}} style={{padding:"7px 12px",cursor:"pointer",borderBottom:`1px solid ${P.border}`,display:"flex",gap:8,alignItems:"center"}} onMouseEnter={e=>e.currentTarget.style.background=P.bg} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+        {p.image&&<img src={p.image} style={{width:32,height:32,borderRadius:6,objectFit:"cover"}} alt=""/>}
+        <div>
+          <div style={{fontFamily:"Lato",fontSize:13,fontWeight:700,color:P.text}}>{p.brandName}</div>
+          {p.genericTag&&<div style={{fontSize:10,color:P.tealDk}}>#{p.genericTag}</div>}
+          <div style={{fontSize:10,color:P.muted}}>{p.kcalPer100} kcal per 100{p.unit}</div>
+        </div>
+      </div>)}
+    </div>}
+  </div>;
+}
 
-    const emptyWeekPlan = () => Object.fromEntries(DAYS.map(d=>[d,Object.fromEntries(MEAL_TYPES.map(m=>[m,[]]))]));
-    const emptyIng = () => ({name:"",amount:"",unit:"",kcal:"",protein:"",fat:"",saturated:"",carbs:"",sugar:"",fiber:"",salt:"",pantryId:null});
-    const emptyRecipe = () => ({name:"",category:"Kaloriunderskudd",mealType:"Middag",servings:1,ingredients:[emptyIng()],steps:[""],image:null});
-    const emptyPantry = () => ({brandName:"",genericTag:"",unit:"g",kcalPer100:"",proteinPer100:"",fatPer100:"",saturatedPer100:"",carbsPer100:"",sugarPer100:"",fiberPer100:"",saltPer100:"",allergens:[],notes:""});
+// ─── BARCODE SCANNER ─────────────────────────────────────────────────────────
+function BarcodeScanner({onResult,onClose}){
+  const videoRef=useRef();const streamRef=useRef();const intRef=useRef();
+  const [status,setStatus]=useState("Starter kamera…");const [scanning,setScanning]=useState(false);
+  useEffect(()=>{
+    let active=true;
+    navigator.mediaDevices.getUserMedia({video:{facingMode:"environment"}}).then(s=>{if(!active){s.getTracks().forEach(t=>t.stop());return;}streamRef.current=s;if(videoRef.current){videoRef.current.srcObject=s;videoRef.current.play();}setStatus("Hold strekkoden foran kameraet");setScanning(true);}).catch(()=>setStatus("Kameratilgang nektet."));
+    return()=>{active=false;if(streamRef.current)streamRef.current.getTracks().forEach(t=>t.stop());clearInterval(intRef.current);};
+  },[]);
+  useEffect(()=>{
+    if(!scanning)return;
+    if(!("BarcodeDetector"in window)){setStatus("Ikke støttet i denne nettleseren.");return;}
+    const det=new window.BarcodeDetector({formats:["ean_13","ean_8","upc_a","upc_e","code_128"]});
+    intRef.current=setInterval(async()=>{if(!videoRef.current||videoRef.current.readyState<2)return;try{const c=await det.detect(videoRef.current);if(c.length>0){clearInterval(intRef.current);setStatus("Funnet! Henter info…");await lookup(c[0].rawValue);}}catch{}},400);
+    return()=>clearInterval(intRef.current);
+  },[scanning]);
+  const lookup=async(bc)=>{
+    try{const r=await fetch(`https://world.openfoodfacts.org/api/v0/product/${bc}.json`);const d=await r.json();
+    if(d.status===1&&d.product){const pr=d.product;const n=pr.nutriments||{};onResult({brandName:pr.product_name||"",genericTag:(pr.categories_tags||[])[0]?.replace(/^(en:|no:)/,"")||"",unit:"g",kcalPer100:String(Math.round(n["energy-kcal_100g"]||0)),proteinPer100:String(Math.round((n.proteins_100g||0)*10)/10),fatPer100:String(Math.round((n.fat_100g||0)*10)/10),saturatedPer100:String(Math.round((n["saturated-fat_100g"]||0)*10)/10),carbsPer100:String(Math.round((n.carbohydrates_100g||0)*10)/10),sugarPer100:String(Math.round((n.sugars_100g||0)*10)/10),fiberPer100:String(Math.round((n.fiber_100g||0)*10)/10),saltPer100:String(Math.round((n.salt_100g||0)*10)/10),allergens:(pr.allergens_tags||[]).map(a=>a.replace(/^(en:|no:)/,"")),notes:pr.brands||""});}
+    else{setStatus("Fant ikke produkt. Prøv manuelt.");setScanning(true);}}catch{setStatus("Nettverksfeil.");}
+  };
+  return <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.85)",zIndex:1000,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
+    <div style={{background:P.card,borderRadius:20,padding:20,maxWidth:420,width:"100%"}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
+        <h3 style={{margin:0,fontFamily:"Playfair Display",color:P.text,fontSize:18}}>📷 Skann strekkode</h3>
+        <button onClick={onClose} style={{background:P.pink,border:"none",borderRadius:8,padding:"4px 10px",cursor:"pointer",fontSize:14}}>✕</button>
+      </div>
+      <div style={{position:"relative",borderRadius:12,overflow:"hidden",background:"#000",marginBottom:12}}>
+        <video ref={videoRef} style={{width:"100%",display:"block",maxHeight:260,objectFit:"cover"}} muted playsInline/>
+        <div style={{position:"absolute",top:"50%",left:"20%",right:"20%",height:2,background:"rgba(77,182,172,0.8)",transform:"translateY(-50%)"}}/>
+      </div>
+      <div style={{fontFamily:"Lato",fontSize:13,color:P.muted,textAlign:"center",marginBottom:12}}>{status}</div>
+      <button onClick={async()=>{const c=window.prompt("Skriv inn strekkode:");if(c){setStatus("Henter…");await lookup(c.trim());}}} style={{width:"100%",background:P.teal,border:"none",borderRadius:10,padding:"8px 0",cursor:"pointer",fontFamily:"Lato",fontSize:13,color:P.text}}>⌨ Skriv inn manuelt</button>
+    </div>
+  </div>;
+}
 
-    function calcNutr(ings,srv=1){
-      const t={};NUTR_FIELDS.forEach(f=>{t[f.key]=0;});
-      ings.forEach(i=>{NUTR_FIELDS.forEach(f=>{t[f.key]+=parseFloat(i[f.key])||0;});});
-      const o={};NUTR_FIELDS.forEach(f=>{o[f.key]=Math.round(t[f.key]/(srv||1)*10)/10;});
-      o.kcal=Math.round(t.kcal/(srv||1));return o;
-    }
-    function autoNutr(amount,p){
-      const a=parseFloat(amount)||0;if(!p||a===0)return null;
-      const o={};
-      NUTR_FIELDS.forEach(f=>{const k=f.key==="kcal"?"kcalPer100":`${f.key}Per100`;const v=parseFloat(p[k])||0;o[f.key]=f.key==="kcal"?Math.round(v*a/100):Math.round(v*a/100*10)/10;});
-      return o;
-    }
-    function getEntries(wp,d,mt){return(wp[d]?.[mt]||[]).map(e=>typeof e==="object"?e:{rid:e,portions:1});}
-    function getWeekKey(offset=0){const now=new Date();now.setDate(now.getDate()+offset*7);const jan1=new Date(now.getFullYear(),0,1);const week=Math.ceil(((now-jan1)/86400000+jan1.getDay()+1)/7);return `${now.getFullYear()}-W${String(week).padStart(2,"0")}`;}
-    function weekLabel(key){const[yr,wk]=key.split("-W");return `Uke ${parseInt(wk)}, ${yr}`;}
+// ─── PANTRY FORM ──────────────────────────────────────────────────────────────
+function PantryForm({initial,onSave,onCancel}){
+  const [it,setIt]=useState(()=>initial?JSON.parse(JSON.stringify(initial)):emptyPantry());
+  const [showScanner,setShowScanner]=useState(false);
+  const imgRef=useRef();
+  const setF=(k,v)=>setIt(x=>({...x,[k]:v}));
+  const toggleAllergen=a=>setIt(x=>({...x,allergens:x.allergens.includes(a)?x.allergens.filter(y=>y!==a):[...x.allergens,a]}));
 
-    function Badge({label,value,unit,color}){
-      return <div style={{background:color,borderRadius:10,padding:"4px 9px",textAlign:"center",minWidth:54}}>
-        <div style={{fontSize:10,color:P.muted,fontFamily:"Lato, sans-serif"}}>{label}</div>
-        <div style={{fontSize:13,fontWeight:700,color:P.text}}>{value}<span style={{fontSize:9,fontWeight:400}}>{unit}</span></div>
-      </div>;
-    }
-    function NutrBadges({nutr,compact=false}){
-      return <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
-        {NUTR_FIELDS.map(f=>{
-          const v=nutr[f.key];
-          if(!f.always&&(v===undefined||v===0||v===""))return null;
-          if(compact&&!f.always)return null;
-          return <Badge key={f.key} label={f.label} value={v??0} unit={f.unit} color={f.color}/>;
-        })}
-      </div>;
-    }
+  const handleNutrPhoto = async(file) => {
+    // Just store the image — user can read values manually from it
+    const b64 = await imgToBase64(file);
+    setF("nutrPhotoRef", b64);
+    window.alert("Bilde av næringsinnhold lagret. Fyll inn verdiene manuelt basert på bildet.");
+  };
 
-    function IngInput({value,pantry,onChange,onSelect}){
-      const [open,setOpen]=useState(false);
-      const ref=useRef();
-      const matches=value.trim()?pantry.filter(p=>p.brandName.toLowerCase().includes(value.toLowerCase())||p.genericTag.toLowerCase().includes(value.toLowerCase())):[];
-      useEffect(()=>{const h=e=>{if(ref.current&&!ref.current.contains(e.target))setOpen(false);};document.addEventListener("mousedown",h);return()=>document.removeEventListener("mousedown",h);},[]);
-      return <div ref={ref} style={{position:"relative"}}>
-        <input style={iSt} placeholder="Ingrediens…" value={value} onChange={e=>{onChange(e.target.value);setOpen(true);}} onFocus={()=>setOpen(true)}/>
-        {open&&matches.length>0&&<div style={{position:"absolute",top:"calc(100% + 2px)",left:0,right:0,background:P.card,border:`1px solid ${P.border}`,borderRadius:10,zIndex:300,boxShadow:"0 4px 18px rgba(0,0,0,0.1)",maxHeight:210,overflowY:"auto"}}>
-          {matches.map(p=><div key={p.id} onMouseDown={()=>{onSelect(p);setOpen(false);}} style={{padding:"7px 12px",cursor:"pointer",borderBottom:`1px solid ${P.border}`}} onMouseEnter={e=>e.currentTarget.style.background=P.bg} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
-            <div style={{fontFamily:"Lato, sans-serif",fontSize:13,fontWeight:700,color:P.text}}>{p.brandName}</div>
-            {p.genericTag&&<div style={{fontSize:10,color:P.tealDk}}>#{p.genericTag}</div>}
-            <div style={{fontSize:10,color:P.muted}}>{p.kcalPer100} kcal · {p.proteinPer100}g P · {p.fatPer100}g F · {p.carbsPer100}g K per 100{p.unit}</div>
-            {p.allergens?.length>0&&<div style={{fontSize:10,color:"#c62828"}}>⚠ {p.allergens.join(", ")}</div>}
-          </div>)}
-        </div>}
-      </div>;
-    }
+  return <>
+    {showScanner&&<BarcodeScanner onResult={data=>{setShowScanner(false);setIt(x=>({...x,...data}));}} onClose={()=>setShowScanner(false)}/>}
+    <div style={{background:P.card,borderRadius:16,padding:24,border:`1.5px solid ${P.teal}`}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
+        <h3 style={{margin:0,fontFamily:"Playfair Display",color:P.text,fontSize:18}}>{initial?"Rediger vare":"Ny vare i spiskammer"}</h3>
+        <button onClick={()=>setShowScanner(true)} style={{background:P.teal,border:"none",borderRadius:10,padding:"6px 12px",cursor:"pointer",fontFamily:"Lato",fontSize:12,color:P.text}}>📷 Skann</button>
+      </div>
 
-    function AuthScreen(){
-      const [mode,setMode]=useState("login");
-      const [email,setEmail]=useState("");
-      const [password,setPassword]=useState("");
-      const [password2,setPassword2]=useState("");
-      const [error,setError]=useState("");
-      const [loading,setLoading]=useState(false);
-
-      const handleSubmit=async()=>{
-        setError("");
-        if(!email||!password){setError("Fyll inn e-post og passord.");return;}
-        if(mode==="register"&&password!==password2){setError("Passordene er ikke like.");return;}
-        if(mode==="register"&&password.length<6){setError("Passordet må være minst 6 tegn.");return;}
-        setLoading(true);
-        try{
-          if(mode==="register") await createUserWithEmailAndPassword(auth,email,password);
-          else await signInWithEmailAndPassword(auth,email,password);
-        }catch(e){
-          const msgs={"auth/email-already-in-use":"E-postadressen er allerede i bruk.","auth/invalid-email":"Ugyldig e-postadresse.","auth/wrong-password":"Feil passord.","auth/user-not-found":"Ingen bruker med denne e-posten.","auth/invalid-credential":"Feil e-post eller passord."};
-          setError(msgs[e.code]||e.message);
+      {/* Product image */}
+      <div style={{marginBottom:14}}>
+        <label style={lSt}>Produktbilde (valgfritt)</label>
+        <input type="file" accept="image/*" style={{display:"none"}} id="pantry-img" onChange={async e=>{if(e.target.files[0])setF("image",await imgToBase64(e.target.files[0]));}}/>
+        {it.image
+          ? <div style={{position:"relative",display:"inline-block"}}>
+              <img src={it.image} style={{width:80,height:80,objectFit:"cover",borderRadius:10,border:`1px solid ${P.border}`}} alt=""/>
+              <button onClick={()=>setF("image",null)} style={{position:"absolute",top:-6,right:-6,background:"#ef5350",border:"none",borderRadius:"50%",width:20,height:20,cursor:"pointer",color:"#fff",fontSize:12,display:"flex",alignItems:"center",justifyContent:"center"}}>×</button>
+            </div>
+          : <label htmlFor="pantry-img" style={{display:"inline-flex",alignItems:"center",gap:6,background:P.purple,border:`1.5px dashed ${P.purpleDk}`,borderRadius:10,padding:"8px 14px",cursor:"pointer",fontFamily:"Lato",fontSize:12,color:P.text}}>🖼 Velg bilde</label>
         }
-        setLoading(false);
-      };
+      </div>
 
-      const handleGoogle=async()=>{
-        setError("");setLoading(true);
-        try{await signInWithPopup(auth,googleProvider);}
-        catch(e){setError("Google-innlogging feilet. Prøv igjen.");}
-        setLoading(false);
-      };
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:14}}>
+        <div style={{gridColumn:"1/-1"}}><label style={lSt}>Produkt- / merkenavn</label><input style={iSt} value={it.brandName} onChange={e=>setF("brandName",e.target.value)} placeholder="F.eks. TINE Meierismør"/></div>
+        <div><label style={lSt}>Generisk tag #</label><div style={{position:"relative"}}><span style={{position:"absolute",left:9,top:"50%",transform:"translateY(-50%)",color:P.tealDk,fontWeight:700}}>#</span><input style={{...iSt,paddingLeft:20}} value={it.genericTag} onChange={e=>setF("genericTag",e.target.value)} placeholder="Smør"/></div></div>
+        <div><label style={lSt}>Enhet</label><input style={iSt} value={it.unit} onChange={e=>setF("unit",e.target.value)} placeholder="g"/></div>
+      </div>
 
-      return <div style={{minHeight:"100vh",background:P.bg,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
-        <div style={{background:P.card,borderRadius:20,padding:32,width:"100%",maxWidth:400,boxShadow:"0 8px 40px rgba(0,0,0,0.1)"}}>
-          <div style={{textAlign:"center",marginBottom:28}}>
-            <div style={{fontSize:44,marginBottom:8}}>🥘</div>
-            <div style={{fontFamily:"'Playfair Display', serif",fontSize:24,color:P.text}}>Måltidsplanlegger</div>
-            <div style={{fontSize:12,color:P.muted,marginTop:4}}>{mode==="login"?"Logg inn på din konto":"Opprett ny konto"}</div>
-          </div>
-          <div style={{marginBottom:14}}><label style={lSt}>E-postadresse</label><input style={iSt} type="email" placeholder="din@epost.no" value={email} onChange={e=>setEmail(e.target.value)} onKeyDown={e=>e.key==="Enter"&&handleSubmit()}/></div>
-          <div style={{marginBottom:14}}><label style={lSt}>Passord</label><input style={iSt} type="password" placeholder="Minst 6 tegn" value={password} onChange={e=>setPassword(e.target.value)} onKeyDown={e=>e.key==="Enter"&&handleSubmit()}/></div>
-          {mode==="register"&&<div style={{marginBottom:14}}><label style={lSt}>Gjenta passord</label><input style={iSt} type="password" placeholder="Skriv passordet én gang til" value={password2} onChange={e=>setPassword2(e.target.value)} onKeyDown={e=>e.key==="Enter"&&handleSubmit()}/></div>}
-          {error&&<div style={{background:"#FFCDD2",borderRadius:8,padding:"8px 12px",fontSize:12,color:"#b71c1c",fontFamily:"Lato, sans-serif",marginBottom:12}}>{error}</div>}
-          <button onClick={handleSubmit} disabled={loading} style={{width:"100%",background:P.greenDk,border:"none",borderRadius:12,padding:"11px 0",cursor:"pointer",fontFamily:"Lato, sans-serif",color:"#fff",fontWeight:700,fontSize:14,marginBottom:10,opacity:loading?0.7:1}}>
-            {loading?"Laster…":mode==="login"?"Logg inn":"Opprett konto"}
-          </button>
-          <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:10}}>
-            <div style={{flex:1,height:1,background:P.border}}/><span style={{fontSize:11,color:P.muted}}>eller</span><div style={{flex:1,height:1,background:P.border}}/>
-          </div>
-          <button onClick={handleGoogle} disabled={loading} style={{width:"100%",background:P.card,border:`1.5px solid ${P.border}`,borderRadius:12,padding:"10px 0",cursor:"pointer",fontFamily:"Lato, sans-serif",color:P.text,fontSize:13,display:"flex",alignItems:"center",justifyContent:"center",gap:8,marginBottom:18}}>
-            <svg width="18" height="18" viewBox="0 0 48 48"><path fill="#FFC107" d="M43.6 20H24v8h11.3C33.6 33.1 29.3 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3 0 5.8 1.1 7.9 3l5.7-5.7C34.1 6.5 29.3 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20c11 0 19.4-7.9 19.9-18H43.6v-6z"/><path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.5 15.1 18.9 12 24 12c3 0 5.8 1.1 7.9 3l5.7-5.7C34.1 6.5 29.3 4 24 4 16.3 4 9.7 8.4 6.3 14.7z"/><path fill="#4CAF50" d="M24 44c5.2 0 9.9-1.9 13.5-5l-6.2-5.2C29.5 35.6 26.9 36 24 36c-5.2 0-9.6-3-11.4-7.3l-6.5 5C9.6 39.6 16.3 44 24 44z"/><path fill="#1976D2" d="M43.6 20H24v8h11.3c-.9 2.5-2.6 4.7-4.8 6.2l6.2 5.2C40.9 36.1 44 30.5 44 24c0-1.4-.1-2.7-.4-4z"/></svg>
-            Fortsett med Google
-          </button>
-          <div style={{textAlign:"center",fontSize:12,color:P.muted,fontFamily:"Lato, sans-serif"}}>
-            {mode==="login"?<>Ingen konto? <span onClick={()=>{setMode("register");setError("");}} style={{color:P.tealDk,cursor:"pointer",fontWeight:700}}>Opprett konto</span></>:<>Har du konto? <span onClick={()=>{setMode("login");setError("");}} style={{color:P.tealDk,cursor:"pointer",fontWeight:700}}>Logg inn</span></>}
-          </div>
+      {/* Nutrition photo helper */}
+      <div style={{marginBottom:14,background:P.bg,borderRadius:10,padding:"10px 12px"}}>
+        <div style={{fontSize:11,color:P.muted,fontFamily:"Lato",marginBottom:6}}>Ta bilde av næringsinnhold for referanse</div>
+        <input type="file" accept="image/*" capture="environment" style={{display:"none"}} id="nutr-photo" onChange={e=>{if(e.target.files[0])handleNutrPhoto(e.target.files[0]);}}/>
+        <label htmlFor="nutr-photo" style={{display:"inline-flex",alignItems:"center",gap:6,background:P.teal,border:"none",borderRadius:8,padding:"6px 12px",cursor:"pointer",fontFamily:"Lato",fontSize:12,color:P.text}}>📷 Foto av næringsinnhold</label>
+        {it.nutrPhotoRef&&<span style={{fontSize:11,color:P.tealDk,marginLeft:8,fontFamily:"Lato"}}>✓ Bilde lagret</span>}
+      </div>
+
+      <div style={{marginBottom:14}}>
+        <div style={{fontSize:11,color:P.muted,fontFamily:"Lato",marginBottom:6}}>Næringsverdier per 100 {it.unit||"g"}</div>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:8}}>
+          {[["Kcal","kcalPer100"],["Protein g","proteinPer100"],["Fett g","fatPer100"],["Mettet fett g","saturatedPer100"],["Karbohydrater g","carbsPer100"],["Sukkerarter g","sugarPer100"],["Fiber g","fiberPer100"],["Salt g","saltPer100"]].map(([l,k])=><div key={k}><label style={lSt}>{l}</label><input style={iSt} type="number" placeholder="—" value={it[k]} onChange={e=>setF(k,e.target.value)}/></div>)}
         </div>
-      </div>;
-    }
+      </div>
 
-    function ProfileTab({user,profile,setProfile,recipes}){
-      const [editing,setEditing]=useState(false);
-      const [gender,setGender]=useState(profile?.gender||"");
-      const memberDate=profile?.createdAt?new Date(profile.createdAt).toLocaleDateString("nb-NO",{year:"numeric",month:"long",day:"numeric"}):"—";
-      const save=async()=>{const updated={...profile,gender};await setDoc(doc(db,"users",user.uid),updated,{merge:true});setProfile(updated);setEditing(false);};
-      return <div style={{maxWidth:500}}>
-        <div style={{background:P.card,borderRadius:16,border:`1px solid ${P.border}`,padding:24,marginBottom:14}}>
-          <div style={{display:"flex",alignItems:"center",gap:14,marginBottom:20}}>
-            <div style={{width:56,height:56,borderRadius:"50%",background:P.purple,display:"flex",alignItems:"center",justifyContent:"center",fontSize:24}}>
-              {user.photoURL?<img src={user.photoURL} style={{width:"100%",height:"100%",borderRadius:"50%",objectFit:"cover"}} alt=""/>:"👤"}
+      <div style={{marginBottom:14}}>
+        <div style={{fontSize:11,color:P.muted,fontFamily:"Lato",marginBottom:6}}>Allergener</div>
+        <div style={{display:"flex",flexWrap:"wrap",gap:5}}>
+          {ALLERGENS.map(a=><button key={a} onClick={()=>toggleAllergen(a)} style={{background:it.allergens.includes(a)?"#FFCDD2":P.bg,border:`1.5px solid ${it.allergens.includes(a)?"#EF9A9A":P.border}`,borderRadius:20,padding:"3px 10px",cursor:"pointer",fontFamily:"Lato",fontSize:11,color:P.text}}>{it.allergens.includes(a)?"⚠ ":""}{a}</button>)}
+        </div>
+      </div>
+
+      <div style={{marginBottom:16}}><label style={lSt}>Notater</label><input style={iSt} value={it.notes} onChange={e=>setF("notes",e.target.value)} placeholder="F.eks. TINE, Oatly…"/></div>
+
+      <div style={{display:"flex",gap:10,justifyContent:"flex-end"}}>
+        <button onClick={onCancel} style={{background:P.border,border:"none",borderRadius:10,padding:"7px 18px",cursor:"pointer",fontFamily:"Lato",color:P.text}}>Avbryt</button>
+        <button onClick={()=>it.brandName.trim()&&onSave(it)} style={{background:P.tealDk,border:"none",borderRadius:10,padding:"7px 22px",cursor:"pointer",fontFamily:"Lato",color:"#fff",fontWeight:700}}>Lagre</button>
+      </div>
+    </div>
+  </>;
+}
+
+// ─── PANTRY TAB ───────────────────────────────────────────────────────────────
+function PantryTab({uid,pantry,setPantry,visibleNutr}){
+  const [form,setForm]=useState(false);
+  const [editing,setEditing]=useState(null);
+  const [search,setSearch]=useState("");
+  const [showFavOnly,setShowFavOnly]=useState(false);
+
+  const save=async(it)=>{
+    const data={...it};
+    if(editing){
+      await updateDoc(doc(db,"users",uid,"pantry",editing.id),data);
+      setPantry(p=>p.map(x=>x.id===editing.id?{...data,id:editing.id}:x));
+    } else {
+      const ref=await addDoc(collection(db,"users",uid,"pantry"),data);
+      setPantry(p=>[...p,{...data,id:ref.id}]);
+    }
+    setForm(false);setEditing(null);
+  };
+
+  const del=async(id)=>{if(window.confirm("Slett?")){{await deleteDoc(doc(db,"users",uid,"pantry",id));setPantry(p=>p.filter(x=>x.id!==id));}}};
+
+  const toggleFav=async(it)=>{
+    const upd={...it,favorite:!it.favorite};
+    await updateDoc(doc(db,"users",uid,"pantry",it.id),{favorite:upd.favorite});
+    setPantry(p=>p.map(x=>x.id===it.id?upd:x));
+  };
+
+  if(form||editing)return <PantryForm initial={editing} onSave={save} onCancel={()=>{setForm(false);setEditing(null);}}/>;
+
+  let filtered=pantry.filter(p=>!search||p.brandName.toLowerCase().includes(search.toLowerCase())||p.genericTag.toLowerCase().includes(search.toLowerCase()));
+  if(showFavOnly)filtered=filtered.filter(p=>p.favorite);
+  const groups={};filtered.forEach(p=>{const t=p.genericTag||"Ukategorisert";if(!groups[t])groups[t]=[];groups[t].push(p);});
+
+  return <div>
+    <div style={{display:"flex",gap:8,marginBottom:14,alignItems:"center",flexWrap:"wrap"}}>
+      <input style={{...iSt,flex:1,minWidth:120}} placeholder="🔍 Søk…" value={search} onChange={e=>setSearch(e.target.value)}/>
+      <button onClick={()=>setShowFavOnly(x=>!x)} style={{background:showFavOnly?"#FFF9C4":P.card,border:`1.5px solid ${showFavOnly?"#F9A825":P.border}`,borderRadius:10,padding:"6px 12px",cursor:"pointer",fontFamily:"Lato",fontSize:12,color:P.text}}>⭐ Favoritter</button>
+      <button onClick={()=>setForm(true)} style={{background:P.tealDk,border:"none",borderRadius:10,padding:"7px 14px",cursor:"pointer",fontFamily:"Lato",color:"#fff",fontWeight:700,fontSize:13,whiteSpace:"nowrap"}}>+ Ny vare</button>
+    </div>
+
+    {filtered.length===0&&<div style={{textAlign:"center",padding:"50px 0",color:P.muted}}><div style={{fontSize:44,marginBottom:10}}>🫙</div><div style={{fontFamily:"Playfair Display",fontSize:17}}>Spiskammeret er tomt</div></div>}
+
+    {Object.entries(groups).sort(([a],[b])=>a.localeCompare(b,"no")).map(([tag,items])=><div key={tag} style={{marginBottom:20}}>
+      <div style={{marginBottom:7}}><span style={{background:P.teal,borderRadius:20,padding:"2px 12px",fontSize:12,fontWeight:700,color:P.tealDk,fontFamily:"Lato"}}>#{tag}</span></div>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(240px,1fr))",gap:8}}>
+        {items.map(it=><div key={it.id} style={{background:P.card,border:`1.5px solid ${P.teal}`,borderRadius:12,padding:"11px 13px",position:"relative"}}>
+          <div style={{display:"flex",gap:10,marginBottom:7,alignItems:"flex-start"}}>
+            {it.image&&<img src={it.image} style={{width:44,height:44,borderRadius:8,objectFit:"cover",flexShrink:0}} alt=""/>}
+            <div style={{flex:1,minWidth:0}}>
+              <div style={{fontFamily:"Lato",fontSize:13,fontWeight:700,color:P.text}}>{it.brandName}</div>
+              {it.genericTag&&<div style={{fontSize:10,color:P.tealDk}}>#{it.genericTag}</div>}
+              {it.notes&&<div style={{fontSize:10,color:P.muted}}>{it.notes}</div>}
             </div>
-            <div><div style={{fontFamily:"'Playfair Display', serif",fontSize:17,color:P.text}}>{user.displayName||user.email}</div><div style={{fontSize:12,color:P.muted,fontFamily:"Lato, sans-serif"}}>{user.email}</div></div>
-          </div>
-          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:16}}>
-            <div style={{background:P.bg,borderRadius:12,padding:"12px 14px"}}><div style={{fontSize:11,color:P.muted,fontFamily:"Lato, sans-serif"}}>Medlem siden</div><div style={{fontFamily:"Lato, sans-serif",fontSize:13,fontWeight:700,color:P.text,marginTop:3}}>{memberDate}</div></div>
-            <div style={{background:P.bg,borderRadius:12,padding:"12px 14px"}}><div style={{fontSize:11,color:P.muted,fontFamily:"Lato, sans-serif"}}>Antall oppskrifter</div><div style={{fontFamily:"Lato, sans-serif",fontSize:22,fontWeight:700,color:P.tealDk,marginTop:3}}>{recipes.length}</div></div>
-          </div>
-          {editing?<div>
-            <label style={lSt}>Kjønn</label>
-            <select style={iSt} value={gender} onChange={e=>setGender(e.target.value)}><option value="">— Velg —</option>{GENDER_OPTIONS.map(g=><option key={g}>{g}</option>)}</select>
-            <div style={{display:"flex",gap:8,marginTop:12}}>
-              <button onClick={()=>setEditing(false)} style={{flex:1,background:P.border,border:"none",borderRadius:10,padding:"8px 0",cursor:"pointer",fontFamily:"Lato, sans-serif",color:P.text}}>Avbryt</button>
-              <button onClick={save} style={{flex:1,background:P.tealDk,border:"none",borderRadius:10,padding:"8px 0",cursor:"pointer",fontFamily:"Lato, sans-serif",color:"#fff",fontWeight:700}}>Lagre</button>
-            </div>
-          </div>:<div>
-            <div style={{fontSize:12,color:P.muted,fontFamily:"Lato, sans-serif",marginBottom:4}}>Kjønn</div>
-            <div style={{fontFamily:"Lato, sans-serif",fontSize:14,color:P.text,marginBottom:14}}>{profile?.gender||"Ikke oppgitt"}</div>
-            <button onClick={()=>setEditing(true)} style={{background:P.yellow,border:"none",borderRadius:10,padding:"7px 18px",cursor:"pointer",fontFamily:"Lato, sans-serif",color:P.text}}>Rediger profil</button>
-          </div>}
-        </div>
-        <button onClick={()=>signOut(auth)} style={{width:"100%",background:P.pink,border:"none",borderRadius:12,padding:"11px 0",cursor:"pointer",fontFamily:"Lato, sans-serif",color:P.text,fontWeight:700,fontSize:14}}>Logg ut</button>
-      </div>;
-    }
-
-    function BarcodeScanner({onResult,onClose}){
-      const videoRef=useRef();const streamRef=useRef();const intervalRef=useRef();
-      const [status,setStatus]=useState("Starter kamera…");const [scanning,setScanning]=useState(false);
-      useEffect(()=>{
-        let active=true;
-        navigator.mediaDevices.getUserMedia({video:{facingMode:"environment"}}).then(stream=>{if(!active){stream.getTracks().forEach(t=>t.stop());return;}streamRef.current=stream;if(videoRef.current){videoRef.current.srcObject=stream;videoRef.current.play();}setStatus("Hold strekkoden foran kameraet");setScanning(true);}).catch(()=>setStatus("Kameratilgang nektet."));
-        return()=>{active=false;if(streamRef.current)streamRef.current.getTracks().forEach(t=>t.stop());clearInterval(intervalRef.current);};
-      },[]);
-      useEffect(()=>{
-        if(!scanning)return;
-        if(!("BarcodeDetector" in window)){setStatus("Strekkodeskanning støttes ikke. Skriv inn manuelt.");return;}
-        const detector=new window.BarcodeDetector({formats:["ean_13","ean_8","upc_a","upc_e","code_128"]});
-        intervalRef.current=setInterval(async()=>{if(!videoRef.current||videoRef.current.readyState<2)return;try{const codes=await detector.detect(videoRef.current);if(codes.length>0){clearInterval(intervalRef.current);setStatus("Strekkode funnet! Henter info…");await lookup(codes[0].rawValue);}}catch{}},400);
-        return()=>clearInterval(intervalRef.current);
-      },[scanning]);
-      const lookup=async(barcode)=>{
-        try{const res=await fetch(`https://world.openfoodfacts.org/api/v0/product/${barcode}.json`);const data=await res.json();if(data.status===1&&data.product){const pr=data.product;const n=pr.nutriments||{};onResult({brandName:pr.product_name||"",genericTag:(pr.categories_tags||[])[0]?.replace("en:","").replace("no:","")||"",unit:"g",kcalPer100:String(Math.round(n["energy-kcal_100g"]||0)),proteinPer100:String(Math.round((n.proteins_100g||0)*10)/10),fatPer100:String(Math.round((n.fat_100g||0)*10)/10),saturatedPer100:String(Math.round((n["saturated-fat_100g"]||0)*10)/10),carbsPer100:String(Math.round((n.carbohydrates_100g||0)*10)/10),sugarPer100:String(Math.round((n.sugars_100g||0)*10)/10),fiberPer100:String(Math.round((n.fiber_100g||0)*10)/10),saltPer100:String(Math.round((n.salt_100g||0)*10)/10),allergens:(pr.allergens_tags||[]).map(a=>a.replace("en:","").replace("no:","")),notes:pr.brands||""});}else{setStatus("Fant ikke produkt. Prøv manuelt.");setScanning(true);}}catch{setStatus("Nettverksfeil.");}
-      };
-      return <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.85)",zIndex:1000,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
-        <div style={{background:P.card,borderRadius:20,padding:20,maxWidth:420,width:"100%"}}>
-          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
-            <h3 style={{margin:0,fontFamily:"'Playfair Display', serif",color:P.text,fontSize:18}}>📷 Skann strekkode</h3>
-            <button onClick={onClose} style={{background:P.pink,border:"none",borderRadius:8,padding:"4px 10px",cursor:"pointer",fontSize:14}}>✕</button>
-          </div>
-          <div style={{position:"relative",borderRadius:12,overflow:"hidden",background:"#000",marginBottom:12}}>
-            <video ref={videoRef} style={{width:"100%",display:"block",maxHeight:280,objectFit:"cover"}} muted playsInline/>
-            <div style={{position:"absolute",top:"50%",left:"20%",right:"20%",height:2,background:"rgba(77,182,172,0.7)",transform:"translateY(-50%)"}}/>
-          </div>
-          <div style={{fontFamily:"Lato, sans-serif",fontSize:13,color:P.muted,textAlign:"center",marginBottom:12}}>{status}</div>
-          <button onClick={async()=>{const c=window.prompt("Skriv inn strekkode:");if(c){setStatus("Henter…");await lookup(c.trim());}}} style={{width:"100%",background:P.teal,border:"none",borderRadius:10,padding:"8px 0",cursor:"pointer",fontFamily:"Lato, sans-serif",fontSize:13,color:P.text}}>⌨ Skriv inn manuelt</button>
-        </div>
-      </div>;
-    }
-
-    function PantryForm({initial,onSave,onCancel}){
-      const [it,setIt]=useState(()=>initial?JSON.parse(JSON.stringify(initial)):emptyPantry());
-      const [showScanner,setShowScanner]=useState(false);
-      const setF=(k,v)=>setIt(x=>({...x,[k]:v}));
-      const toggleAllergen=a=>setIt(x=>({...x,allergens:x.allergens.includes(a)?x.allergens.filter(y=>y!==a):[...x.allergens,a]}));
-      return <>
-        {showScanner&&<BarcodeScanner onResult={data=>{setShowScanner(false);setIt(x=>({...x,...data}));}} onClose={()=>setShowScanner(false)}/>}
-        <div style={{background:P.card,borderRadius:16,padding:24,border:`1.5px solid ${P.teal}`}}>
-          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
-            <h3 style={{margin:0,fontFamily:"'Playfair Display', serif",color:P.text,fontSize:18}}>{initial?"Rediger vare":"Ny vare i spiskammer"}</h3>
-            <button onClick={()=>setShowScanner(true)} style={{background:P.teal,border:"none",borderRadius:10,padding:"7px 14px",cursor:"pointer",fontFamily:"Lato, sans-serif",fontSize:12,color:P.text}}>📷 Skann</button>
-          </div>
-          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:14}}>
-            <div style={{gridColumn:"1/-1"}}><label style={lSt}>Produkt- / merkenavn</label><input style={iSt} value={it.brandName} onChange={e=>setF("brandName",e.target.value)} placeholder="F.eks. TINE Meierismør"/></div>
-            <div><label style={lSt}>Generisk tag #</label><div style={{position:"relative"}}><span style={{position:"absolute",left:9,top:"50%",transform:"translateY(-50%)",color:P.tealDk,fontWeight:700}}>#</span><input style={{...iSt,paddingLeft:20}} value={it.genericTag} onChange={e=>setF("genericTag",e.target.value)} placeholder="Smør"/></div></div>
-            <div><label style={lSt}>Enhet</label><input style={iSt} value={it.unit} onChange={e=>setF("unit",e.target.value)} placeholder="g"/></div>
-          </div>
-          <div style={{marginBottom:14}}>
-            <div style={{fontSize:11,color:P.muted,fontFamily:"Lato, sans-serif",marginBottom:6}}>Næringsverdier per 100 {it.unit||"g"}</div>
-            <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:8}}>
-              {[["Kcal","kcalPer100"],["Protein g","proteinPer100"],["Fett g","fatPer100"],["Mettet fett g","saturatedPer100"],["Karbohydrater g","carbsPer100"],["Sukkerarter g","sugarPer100"],["Fiber g","fiberPer100"],["Salt g","saltPer100"]].map(([l,k])=><div key={k}><label style={lSt}>{l}</label><input style={iSt} type="number" placeholder="—" value={it[k]} onChange={e=>setF(k,e.target.value)}/></div>)}
+            <div style={{display:"flex",gap:4,flexShrink:0}}>
+              <button onClick={()=>toggleFav(it)} style={{background:"none",border:"none",cursor:"pointer",fontSize:16,lineHeight:1}}>{it.favorite?"⭐":"☆"}</button>
+              <button onClick={()=>setEditing(it)} style={{background:P.yellow,border:"none",borderRadius:6,padding:"3px 7px",cursor:"pointer",fontSize:11}}>✎</button>
+              <button onClick={()=>del(it.id)} style={{background:P.pink,border:"none",borderRadius:6,padding:"3px 7px",cursor:"pointer",fontSize:11}}>✕</button>
             </div>
           </div>
-          <div style={{marginBottom:14}}>
-            <div style={{fontSize:11,color:P.muted,fontFamily:"Lato, sans-serif",marginBottom:6}}>Allergener</div>
-            <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
-              {ALLERGEN_LIST.map(a=><button key={a} onClick={()=>toggleAllergen(a)} style={{background:it.allergens.includes(a)?"#FFCDD2":P.bg,border:`1.5px solid ${it.allergens.includes(a)?"#EF9A9A":P.border}`,borderRadius:20,padding:"3px 10px",cursor:"pointer",fontFamily:"Lato, sans-serif",fontSize:11,color:P.text}}>{it.allergens.includes(a)?"⚠ ":""}{a}</button>)}
-            </div>
-          </div>
-          <div style={{marginBottom:16}}><label style={lSt}>Notater</label><input style={iSt} value={it.notes} onChange={e=>setF("notes",e.target.value)} placeholder="F.eks. TINE, Oatly…"/></div>
-          <div style={{display:"flex",gap:10,justifyContent:"flex-end"}}>
-            <button onClick={onCancel} style={{background:P.border,border:"none",borderRadius:10,padding:"7px 18px",cursor:"pointer",fontFamily:"Lato, sans-serif",color:P.text}}>Avbryt</button>
-            <button onClick={()=>it.brandName.trim()&&onSave(it)} style={{background:P.tealDk,border:"none",borderRadius:10,padding:"7px 22px",cursor:"pointer",fontFamily:"Lato, sans-serif",color:"#fff",fontWeight:700}}>Lagre</button>
-          </div>
-        </div>
-      </>;
-    }
-
-    function PantryTab({uid,pantry,setPantry}){
-      const [form,setForm]=useState(false);const [editing,setEditing]=useState(null);const [search,setSearch]=useState("");
-      const save=async(it)=>{
-        if(editing){await updateDoc(doc(db,"users",uid,"pantry",editing.id),it);setPantry(p=>p.map(x=>x.id===editing.id?{...it,id:editing.id}:x));}
-        else{const ref=await addDoc(collection(db,"users",uid,"pantry"),it);setPantry(p=>[...p,{...it,id:ref.id}]);}
-        setForm(false);setEditing(null);
-      };
-      const del=async(id)=>{if(window.confirm("Slett?")){{await deleteDoc(doc(db,"users",uid,"pantry",id));setPantry(p=>p.filter(x=>x.id!==id));}}};
-      if(form||editing)return <PantryForm initial={editing} onSave={save} onCancel={()=>{setForm(false);setEditing(null);}}/>;
-      const filtered=pantry.filter(p=>!search||p.brandName.toLowerCase().includes(search.toLowerCase())||p.genericTag.toLowerCase().includes(search.toLowerCase()));
-      const groups={};filtered.forEach(p=>{const t=p.genericTag||"Ukategorisert";if(!groups[t])groups[t]=[];groups[t].push(p);});
-      return <div>
-        <div style={{display:"flex",gap:8,marginBottom:14,alignItems:"center"}}>
-          <input style={{...iSt,flex:1}} placeholder="🔍 Søk i spiskammer…" value={search} onChange={e=>setSearch(e.target.value)}/>
-          <button onClick={()=>setForm(true)} style={{background:P.tealDk,border:"none",borderRadius:10,padding:"7px 16px",cursor:"pointer",fontFamily:"Lato, sans-serif",color:"#fff",fontWeight:700,fontSize:13,whiteSpace:"nowrap"}}>+ Ny vare</button>
-        </div>
-        {filtered.length===0&&<div style={{textAlign:"center",padding:"50px 0",color:P.muted}}><div style={{fontSize:44,marginBottom:10}}>🫙</div><div style={{fontFamily:"'Playfair Display', serif",fontSize:17}}>Spiskammeret er tomt</div></div>}
-        {Object.entries(groups).sort(([a],[b])=>a.localeCompare(b,"no")).map(([tag,items])=><div key={tag} style={{marginBottom:20}}>
-          <div style={{marginBottom:7}}><span style={{background:P.teal,borderRadius:20,padding:"2px 12px",fontSize:12,fontWeight:700,color:P.tealDk,fontFamily:"Lato, sans-serif"}}>#{tag}</span></div>
-          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(250px,1fr))",gap:8}}>
-            {items.map(it=><div key={it.id} style={{background:P.card,border:`1.5px solid ${P.teal}`,borderRadius:12,padding:"11px 13px"}}>
-              <div style={{display:"flex",justifyContent:"space-between",marginBottom:7}}>
-                <div><div style={{fontFamily:"Lato, sans-serif",fontSize:13,fontWeight:700,color:P.text}}>{it.brandName}</div>{it.genericTag&&<div style={{fontSize:10,color:P.tealDk}}>#{it.genericTag}</div>}{it.notes&&<div style={{fontSize:10,color:P.muted}}>{it.notes}</div>}</div>
-                <div style={{display:"flex",gap:4}}>
-                  <button onClick={()=>setEditing(it)} style={{background:P.yellow,border:"none",borderRadius:6,padding:"3px 7px",cursor:"pointer",fontSize:11}}>✎</button>
-                  <button onClick={()=>del(it.id)} style={{background:P.pink,border:"none",borderRadius:6,padding:"3px 7px",cursor:"pointer",fontSize:11}}>✕</button>
-                </div>
-              </div>
-              <div style={{display:"flex",gap:5,flexWrap:"wrap",marginBottom:it.allergens?.length>0?7:0}}>
-                {NUTR_FIELDS.map(f=>{const pk=f.key==="kcal"?"kcalPer100":`${f.key}Per100`;const v=it[pk];if(!f.always&&(!v||v==="0"||v===""))return null;return <Badge key={f.key} label={f.label} value={v||0} unit={`${f.unit}/100${it.unit}`} color={f.color}/>;})}</div>
-              {it.allergens?.length>0&&<div style={{display:"flex",flexWrap:"wrap",gap:4}}>{it.allergens.map(a=><span key={a} style={{background:"#FFCDD2",border:"1px solid #EF9A9A",borderRadius:20,padding:"1px 8px",fontSize:10,color:"#b71c1c",fontFamily:"Lato, sans-serif"}}>⚠ {a}</span>)}</div>}
-            </div>)}
-          </div>
+          <div style={{display:"flex",gap:5,flexWrap:"wrap",marginBottom:it.allergens?.length>0?7:0}}>
+            {ALL_NUTR.map(f=>{const pk=f.key==="kcal"?"kcalPer100":`${f.key}Per100`;const v=it[pk];if(!visibleNutr[f.key])return null;if(!v||v==="0"||v==="")return null;return <Badge key={f.key} label={f.label} value={v||0} unit={`${f.unit}/100${it.unit}`} color={f.color}/>;})}</div>
+          {it.allergens?.length>0&&<div style={{display:"flex",flexWrap:"wrap",gap:4}}>{it.allergens.map(a=><span key={a} style={{background:"#FFCDD2",border:"1px solid #EF9A9A",borderRadius:20,padding:"1px 8px",fontSize:10,color:"#b71c1c",fontFamily:"Lato"}}>⚠ {a}</span>)}</div>}
         </div>)}
-      </div>;
-    }
+      </div>
+    </div>)}
+  </div>;
+}
 
-    function RecipeForm({initial,pantry,onSave,onCancel}){
-      const [r,setR]=useState(()=>initial?JSON.parse(JSON.stringify(initial)):emptyRecipe());
-      const setF=(k,v)=>setR(x=>({...x,[k]:v}));
-      const setIng=(i,k,v)=>{const a=[...r.ingredients];a[i]={...a[i],[k]:v};setF("ingredients",a);};
-      const selectPantry=(i,p)=>{const a=[...r.ingredients];const auto=autoNutr(a[i].amount,p);a[i]={...a[i],name:p.brandName,unit:p.unit,pantryId:p.id};if(auto)Object.keys(auto).forEach(k=>{a[i][k]=String(auto[k]);});setF("ingredients",a);};
-      const handleAmt=(i,v)=>{const a=[...r.ingredients];a[i]={...a[i],amount:v};if(a[i].pantryId){const p=pantry.find(x=>x.id===a[i].pantryId);const au=autoNutr(v,p);if(au)Object.keys(au).forEach(k=>{a[i][k]=String(au[k]);});}setF("ingredients",a);};
-      const nutr=calcNutr(r.ingredients,r.servings);
-      const imgRef=useRef();
-      const cols="2fr 0.8fr 0.7fr 0.7fr 0.7fr 0.7fr 0.7fr 0.7fr 0.7fr 0.7fr 0.7fr 26px";
-      return <div style={{background:P.card,borderRadius:16,padding:24,border:`1px solid ${P.border}`}}>
-        <h3 style={{margin:"0 0 18px",fontFamily:"'Playfair Display', serif",color:P.text,fontSize:20}}>{initial?"Rediger oppskrift":"Ny oppskrift"}</h3>
-        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:20}}>
-          <div style={{gridColumn:"1/-1"}}><label style={lSt}>Navn</label><input style={iSt} value={r.name} onChange={e=>setF("name",e.target.value)} placeholder="F.eks. Kyllingsuppe"/></div>
-          <div><label style={lSt}>Måltidstype</label><select style={iSt} value={r.mealType} onChange={e=>setF("mealType",e.target.value)}>{MEAL_TYPES.map(m=><option key={m}>{m}</option>)}</select></div>
-          <div><label style={lSt}>Kategori</label><select style={iSt} value={r.category} onChange={e=>setF("category",e.target.value)}>{CATEGORIES.map(c=><option key={c}>{c}</option>)}</select></div>
-          <div><label style={lSt}>Porsjoner</label><input style={{...iSt,width:80}} type="number" min={1} value={r.servings} onChange={e=>setF("servings",parseInt(e.target.value)||1)}/></div>
-        </div>
-        <div style={{marginBottom:20}}>
-          <label style={lSt}>Bilde (valgfritt)</label>
-          <input ref={imgRef} type="file" accept="image/*" style={{display:"none"}} onChange={e=>{const f=e.target.files[0];if(!f)return;const rd=new FileReader();rd.onload=ev=>setF("image",ev.target.result);rd.readAsDataURL(f);}}/>
-          {r.image?<div style={{position:"relative",display:"inline-block"}}>
-            <img src={r.image} alt="" style={{width:"100%",maxWidth:340,maxHeight:180,objectFit:"cover",borderRadius:12,display:"block",border:`1px solid ${P.border}`}}/>
-            <button onClick={()=>setF("image",null)} style={{position:"absolute",top:6,right:6,background:"rgba(0,0,0,0.55)",border:"none",borderRadius:"50%",width:26,height:26,cursor:"pointer",color:"#fff",fontSize:14,display:"flex",alignItems:"center",justifyContent:"center"}}>×</button>
-          </div>:<div style={{display:"flex",gap:8}}>
-            <button onClick={()=>{imgRef.current.removeAttribute("capture");imgRef.current.click();}} style={{background:P.purple,border:`1.5px dashed ${P.purpleDk}`,borderRadius:10,padding:"9px 16px",cursor:"pointer",fontFamily:"Lato, sans-serif",fontSize:12,color:P.text}}>🖼 Bildebibliotek</button>
-            <button onClick={()=>{imgRef.current.setAttribute("capture","environment");imgRef.current.click();}} style={{background:P.teal,border:`1.5px dashed ${P.tealDk}`,borderRadius:10,padding:"9px 16px",cursor:"pointer",fontFamily:"Lato, sans-serif",fontSize:12,color:P.text}}>📷 Ta bilde</button>
-          </div>}
-        </div>
-        <div style={{marginBottom:20}}>
-          <div style={{display:"flex",justifyContent:"space-between",marginBottom:8}}><h4 style={{margin:0,fontFamily:"'Playfair Display', serif",color:P.text}}>Ingredienser</h4><button onClick={()=>setF("ingredients",[...r.ingredients,emptyIng()])} style={{background:P.green,border:"none",borderRadius:8,padding:"4px 12px",cursor:"pointer",fontFamily:"Lato, sans-serif",color:P.text,fontSize:12}}>+ Legg til</button></div>
-          <div style={{overflowX:"auto"}}>
-            <div style={{display:"grid",gridTemplateColumns:cols,gap:4,marginBottom:4,minWidth:900}}>{["Ingrediens","Mengde","Enhet","Kcal","Prot","Fett","M.fett","Karbo","Sukker","Fiber","Salt",""].map((h,i)=><div key={i} style={{fontSize:10,color:P.muted,fontFamily:"Lato, sans-serif"}}>{h}</div>)}</div>
-            {r.ingredients.map((ing,i)=>{const linked=ing.pantryId?pantry.find(p=>p.id===ing.pantryId):null;return <div key={i} style={{marginBottom:5}}>
-              <div style={{display:"grid",gridTemplateColumns:cols,gap:4,minWidth:900}}>
-                <IngInput value={ing.name} pantry={pantry} onChange={v=>{setIng(i,"name",v);if(!v)setIng(i,"pantryId",null);}} onSelect={p=>selectPantry(i,p)}/>
-                <input style={iSt} placeholder="100" value={ing.amount} onChange={e=>handleAmt(i,e.target.value)}/>
-                <input style={iSt} placeholder="g" value={ing.unit} onChange={e=>setIng(i,"unit",e.target.value)}/>
-                {["kcal","protein","fat","saturated","carbs","sugar","fiber","salt"].map(k=><input key={k} style={{...iSt,background:linked?"#EEF8EE":P.card}} type="number" placeholder="—" value={ing[k]} onChange={e=>setIng(i,k,e.target.value)}/>)}
-                <button onClick={()=>setF("ingredients",r.ingredients.filter((_,j)=>j!==i))} style={{background:P.pink,border:"none",borderRadius:6,cursor:"pointer",fontSize:13}}>×</button>
-              </div>
-              {linked&&<div style={{fontSize:10,color:P.tealDk,fontFamily:"Lato, sans-serif",marginTop:1,marginLeft:2}}>🔗 #{linked.genericTag}</div>}
-            </div>;})}
-          </div>
-          <div style={{display:"flex",gap:7,marginTop:10,flexWrap:"wrap",alignItems:"center"}}><span style={{fontSize:11,color:P.muted,fontFamily:"Lato, sans-serif"}}>Per porsjon:</span><NutrBadges nutr={nutr}/></div>
-        </div>
-        <div style={{marginBottom:20}}>
-          <div style={{display:"flex",justifyContent:"space-between",marginBottom:8}}><h4 style={{margin:0,fontFamily:"'Playfair Display', serif",color:P.text}}>Fremgangsmåte</h4><button onClick={()=>setF("steps",[...r.steps,""])} style={{background:P.blue,border:"none",borderRadius:8,padding:"4px 12px",cursor:"pointer",fontFamily:"Lato, sans-serif",color:P.text,fontSize:12}}>+ Steg</button></div>
-          {r.steps.map((s,i)=><div key={i} style={{display:"flex",gap:7,marginBottom:5,alignItems:"flex-start"}}>
-            <div style={{minWidth:20,height:20,borderRadius:"50%",background:P.purple,display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,fontWeight:700,color:P.text,marginTop:8}}>{i+1}</div>
-            <textarea style={{...iSt,resize:"vertical",minHeight:34}} value={s} placeholder={`Steg ${i+1}…`} onChange={e=>{const a=[...r.steps];a[i]=e.target.value;setF("steps",a);}}/>
-            <button onClick={()=>setF("steps",r.steps.filter((_,j)=>j!==i))} style={{background:P.pink,border:"none",borderRadius:6,cursor:"pointer",fontSize:12,padding:"4px 7px",marginTop:4}}>×</button>
-          </div>)}
-        </div>
-        <div style={{display:"flex",gap:10,justifyContent:"flex-end"}}>
-          <button onClick={onCancel} style={{background:P.border,border:"none",borderRadius:10,padding:"7px 18px",cursor:"pointer",fontFamily:"Lato, sans-serif",color:P.text}}>Avbryt</button>
-          <button onClick={()=>r.name.trim()&&onSave(r)} style={{background:P.greenDk,border:"none",borderRadius:10,padding:"7px 22px",cursor:"pointer",fontFamily:"Lato, sans-serif",color:"#fff",fontWeight:700}}>Lagre</button>
-        </div>
-      </div>;
-    }
+// ─── RECIPE FORM ──────────────────────────────────────────────────────────────
+function RecipeForm({initial,pantry,onSave,onCancel}){
+  const [r,setR]=useState(()=>initial?JSON.parse(JSON.stringify(initial)):emptyRecipe());
+  const setF=(k,v)=>setR(x=>({...x,[k]:v}));
+  const setIng=(i,k,v)=>{const a=[...r.ingredients];a[i]={...a[i],[k]:v};setF("ingredients",a);};
+  const selPantry=(i,p)=>{const a=[...r.ingredients];const au=autoNutr(a[i].amount,p);a[i]={...a[i],name:p.brandName,unit:p.unit,pantryId:p.id};if(au)Object.keys(au).forEach(k=>{a[i][k]=String(au[k]);});setF("ingredients",a);};
+  const handleAmt=(i,v)=>{const a=[...r.ingredients];a[i]={...a[i],amount:v};if(a[i].pantryId){const p=pantry.find(x=>x.id===a[i].pantryId);const au=autoNutr(v,p);if(au)Object.keys(au).forEach(k=>{a[i][k]=String(au[k]);});}setF("ingredients",a);};
+  const nutr=calcNutr(r.ingredients,r.servings);
+  const imgRef=useRef();
+  const cols="2fr 0.8fr 0.7fr 0.7fr 0.7fr 0.7fr 0.7fr 0.7fr 0.7fr 0.7fr 0.7fr 26px";
 
-    function RecipeDetail({recipe,pantry,onClose,onEdit,onDelete,onAddToPlan}){
-      const [brand,setBrand]=useState(true);
-      const nutr=calcNutr(recipe.ingredients,recipe.servings);
-      const mc=MC[recipe.mealType]||MC["Middag"];
-      const hasLinked=recipe.ingredients.some(i=>i.pantryId);
-      const dispName=ing=>{if(!ing.pantryId)return ing.name;const p=pantry.find(x=>x.id===ing.pantryId);if(!p)return ing.name;return brand?p.brandName:(p.genericTag||p.brandName);};
-      const allergens=[...new Set(recipe.ingredients.flatMap(ing=>{if(!ing.pantryId)return[];const p=pantry.find(x=>x.id===ing.pantryId);return p?.allergens||[];}))];
-      return <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.55)",zIndex:500,display:"flex",alignItems:"flex-start",justifyContent:"center",padding:"20px 12px",overflowY:"auto"}}>
-        <div style={{background:P.card,borderRadius:18,width:"100%",maxWidth:560,boxShadow:"0 8px 40px rgba(0,0,0,0.18)",overflow:"hidden"}}>
-          {recipe.image&&<div style={{width:"100%",height:220,overflow:"hidden"}}><img src={recipe.image} alt="" style={{width:"100%",height:"100%",objectFit:"cover",display:"block"}}/></div>}
-          <div style={{background:mc.bg,padding:"13px 16px",display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
-            <div style={{display:"flex",gap:8,alignItems:"center"}}><span style={{fontSize:20}}>{mc.icon}</span><div><div style={{fontFamily:"'Playfair Display', serif",fontSize:17,fontWeight:700,color:P.text}}>{recipe.name}</div><div style={{fontSize:11,color:P.muted,fontFamily:"Lato, sans-serif"}}>{recipe.mealType} · {recipe.servings} porsjon{recipe.servings>1?"er":""}</div></div></div>
-            <button onClick={onClose} style={{background:"rgba(0,0,0,0.1)",border:"none",borderRadius:8,padding:"4px 10px",cursor:"pointer",fontSize:16,color:P.text}}>✕</button>
+  return <div style={{background:P.card,borderRadius:16,padding:24,border:`1px solid ${P.border}`}}>
+    <h3 style={{margin:"0 0 18px",fontFamily:"Playfair Display",color:P.text,fontSize:20}}>{initial?"Rediger oppskrift":"Ny oppskrift"}</h3>
+
+    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:18}}>
+      <div style={{gridColumn:"1/-1"}}><label style={lSt}>Navn</label><input style={iSt} value={r.name} onChange={e=>setF("name",e.target.value)} placeholder="F.eks. Kyllingsuppe"/></div>
+      <div><label style={lSt}>Måltidstype</label><select style={iSt} value={r.mealType} onChange={e=>setF("mealType",e.target.value)}>{MEAL_TYPES.map(m=><option key={m}>{m}</option>)}</select></div>
+      <div><label style={lSt}>Kategori</label><select style={iSt} value={r.category} onChange={e=>setF("category",e.target.value)}>{CATEGORIES.map(c=><option key={c}>{c}</option>)}</select></div>
+      <div><label style={lSt}>Varm / kald</label><select style={iSt} value={r.tempType||"Varmmat"} onChange={e=>setF("tempType",e.target.value)}>{TEMP_TYPES.map(t=><option key={t}>{t}</option>)}</select></div>
+      <div><label style={lSt}>Porsjoner</label><input style={{...iSt,width:80}} type="number" min={1} value={r.servings} onChange={e=>setF("servings",parseInt(e.target.value)||1)}/></div>
+    </div>
+
+    {/* Storage info */}
+    <div style={{background:P.bg,borderRadius:12,padding:"12px 14px",marginBottom:18}}>
+      <div style={{fontSize:12,fontWeight:700,color:P.text,fontFamily:"Lato",marginBottom:10}}>Oppbevaring</div>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:10}}>
+        <div><label style={lSt}>Holder seg i kjøleskap (dager)</label><input style={iSt} type="number" placeholder="—" value={r.fridgeDays} onChange={e=>setF("fridgeDays",e.target.value)}/></div>
+        <div><label style={lSt}>Kan fryses i (dager)</label><input style={{...iSt,opacity:r.canFreeze?1:0.5}} type="number" placeholder="—" disabled={!r.canFreeze} value={r.freezeDays} onChange={e=>setF("freezeDays",e.target.value)}/></div>
+      </div>
+      <div style={{display:"flex",gap:16,flexWrap:"wrap"}}>
+        <label style={{display:"flex",alignItems:"center",gap:6,cursor:"pointer",fontFamily:"Lato",fontSize:13,color:P.text}}>
+          <input type="checkbox" checked={r.canFreeze} onChange={e=>setF("canFreeze",e.target.checked)} style={{width:16,height:16}}/> Kan fryses
+        </label>
+        <label style={{display:"flex",alignItems:"center",gap:6,cursor:"pointer",fontFamily:"Lato",fontSize:13,color:P.text}}>
+          <input type="checkbox" checked={r.needsCold} onChange={e=>setF("needsCold",e.target.checked)} style={{width:16,height:16}}/> Må oppbevares kjølig
+        </label>
+      </div>
+    </div>
+
+    {/* Image */}
+    <div style={{marginBottom:18}}>
+      <label style={lSt}>Bilde (valgfritt)</label>
+      <input ref={imgRef} type="file" accept="image/*" style={{display:"none"}} onChange={async e=>{if(e.target.files[0])setF("image",await imgToBase64(e.target.files[0]));}}/>
+      {r.image?<div style={{position:"relative",display:"inline-block"}}>
+        <img src={r.image} alt="" style={{width:"100%",maxWidth:320,maxHeight:160,objectFit:"cover",borderRadius:12,display:"block",border:`1px solid ${P.border}`}}/>
+        <button onClick={()=>setF("image",null)} style={{position:"absolute",top:6,right:6,background:"rgba(0,0,0,0.55)",border:"none",borderRadius:"50%",width:26,height:26,cursor:"pointer",color:"#fff",fontSize:14,display:"flex",alignItems:"center",justifyContent:"center"}}>×</button>
+      </div>:<div style={{display:"flex",gap:8}}>
+        <button onClick={()=>{imgRef.current.removeAttribute("capture");imgRef.current.click();}} style={{background:P.purple,border:`1.5px dashed ${P.purpleDk}`,borderRadius:10,padding:"8px 14px",cursor:"pointer",fontFamily:"Lato",fontSize:12,color:P.text}}>🖼 Bildebibliotek</button>
+        <button onClick={()=>{imgRef.current.setAttribute("capture","environment");imgRef.current.click();}} style={{background:P.teal,border:`1.5px dashed ${P.tealDk}`,borderRadius:10,padding:"8px 14px",cursor:"pointer",fontFamily:"Lato",fontSize:12,color:P.text}}>📷 Ta bilde</button>
+      </div>}
+    </div>
+
+    {/* Ingredients */}
+    <div style={{marginBottom:18}}>
+      <div style={{display:"flex",justifyContent:"space-between",marginBottom:8}}><h4 style={{margin:0,fontFamily:"Playfair Display",color:P.text}}>Ingredienser</h4><button onClick={()=>setF("ingredients",[...r.ingredients,emptyIng()])} style={{background:P.green,border:"none",borderRadius:8,padding:"4px 12px",cursor:"pointer",fontFamily:"Lato",color:P.text,fontSize:12}}>+ Legg til</button></div>
+      <div style={{overflowX:"auto"}}>
+        <div style={{display:"grid",gridTemplateColumns:cols,gap:4,marginBottom:4,minWidth:900}}>{["Ingrediens","Mengde","Enhet","Kcal","Prot","Fett","M.fett","Karbo","Sukker","Fiber","Salt",""].map((h,i)=><div key={i} style={{fontSize:10,color:P.muted,fontFamily:"Lato"}}>{h}</div>)}</div>
+        {r.ingredients.map((ing,i)=>{const linked=ing.pantryId?pantry.find(p=>p.id===ing.pantryId):null;return <div key={i} style={{marginBottom:5}}>
+          <div style={{display:"grid",gridTemplateColumns:cols,gap:4,minWidth:900}}>
+            <IngInput value={ing.name} pantry={pantry} onChange={v=>{setIng(i,"name",v);if(!v)setIng(i,"pantryId",null);}} onSelect={p=>selPantry(i,p)}/>
+            <input style={iSt} placeholder="100" value={ing.amount} onChange={e=>handleAmt(i,e.target.value)}/>
+            <input style={iSt} placeholder="g" value={ing.unit} onChange={e=>setIng(i,"unit",e.target.value)}/>
+            {["kcal","protein","fat","saturated","carbs","sugar","fiber","salt"].map(k=><input key={k} style={{...iSt,background:linked?"#EEF8EE":P.card}} type="number" placeholder="—" value={ing[k]} onChange={e=>setIng(i,k,e.target.value)}/>)}
+            <button onClick={()=>setF("ingredients",r.ingredients.filter((_,j)=>j!==i))} style={{background:P.pink,border:"none",borderRadius:6,cursor:"pointer",fontSize:13}}>×</button>
           </div>
-          <div style={{padding:"16px 18px"}}>
-            <div style={{marginBottom:14}}><NutrBadges nutr={nutr}/></div>
-            {allergens.length>0&&<div style={{display:"flex",flexWrap:"wrap",gap:4,marginBottom:14}}>{allergens.map(a=><span key={a} style={{background:"#FFCDD2",border:"1px solid #EF9A9A",borderRadius:20,padding:"2px 9px",fontSize:11,color:"#b71c1c",fontFamily:"Lato, sans-serif"}}>⚠ {a}</span>)}</div>}
-            {hasLinked&&<div style={{marginBottom:12}}><button onClick={()=>setBrand(b=>!b)} style={{background:brand?P.teal:P.peach,border:"none",borderRadius:20,padding:"3px 12px",cursor:"pointer",fontFamily:"Lato, sans-serif",fontSize:11,color:P.text}}>{brand?"🏷️ Merkenavn":"🥛 Generisk"}</button></div>}
-            <div style={{marginBottom:14}}><div style={{fontFamily:"'Playfair Display', serif",fontSize:15,color:P.text,marginBottom:6}}>Ingredienser</div><ul style={{margin:0,paddingLeft:18,fontFamily:"Lato, sans-serif",fontSize:13,color:P.text}}>{recipe.ingredients.filter(i=>i.name.trim()).map((ing,i)=><li key={i} style={{marginBottom:3}}>{ing.amount} {ing.unit} {dispName(ing)}</li>)}</ul></div>
-            {recipe.steps.filter(s=>s.trim()).length>0&&<div style={{marginBottom:16}}><div style={{fontFamily:"'Playfair Display', serif",fontSize:15,color:P.text,marginBottom:6}}>Fremgangsmåte</div><ol style={{margin:0,paddingLeft:18,fontFamily:"Lato, sans-serif",fontSize:13,color:P.text}}>{recipe.steps.filter(s=>s.trim()).map((s,i)=><li key={i} style={{marginBottom:6,lineHeight:1.5}}>{s}</li>)}</ol></div>}
-            <div style={{display:"flex",gap:7,paddingTop:8,borderTop:`1px solid ${P.border}`}}>
-              <button onClick={()=>{onAddToPlan(recipe);onClose();}} style={{flex:1,background:P.blue,border:"none",borderRadius:10,padding:"8px 0",cursor:"pointer",fontSize:12,fontFamily:"Lato, sans-serif",color:P.text}}>+ Legg i plan</button>
-              <button onClick={()=>{onEdit(recipe);onClose();}} style={{background:P.yellow,border:"none",borderRadius:10,padding:"8px 13px",cursor:"pointer",fontSize:13}}>✎</button>
-              <button onClick={()=>{onDelete(recipe.id);onClose();}} style={{background:P.pink,border:"none",borderRadius:10,padding:"8px 13px",cursor:"pointer",fontSize:13}}>✕</button>
-            </div>
+          {linked&&<div style={{fontSize:10,color:P.tealDk,fontFamily:"Lato",marginTop:1,marginLeft:2}}>🔗 #{linked.genericTag}</div>}
+        </div>;})}
+      </div>
+      <div style={{display:"flex",gap:7,marginTop:10,flexWrap:"wrap",alignItems:"center"}}><span style={{fontSize:11,color:P.muted,fontFamily:"Lato"}}>Per porsjon:</span><NutrBadges nutr={nutr} visibleNutr={Object.fromEntries(ALL_NUTR.map(f=>[f.key,true]))}/></div>
+    </div>
+
+    {/* Steps */}
+    <div style={{marginBottom:18}}>
+      <div style={{display:"flex",justifyContent:"space-between",marginBottom:8}}><h4 style={{margin:0,fontFamily:"Playfair Display",color:P.text}}>Fremgangsmåte</h4><button onClick={()=>setF("steps",[...r.steps,""])} style={{background:P.blue,border:"none",borderRadius:8,padding:"4px 12px",cursor:"pointer",fontFamily:"Lato",color:P.text,fontSize:12}}>+ Steg</button></div>
+      {r.steps.map((s,i)=><div key={i} style={{display:"flex",gap:7,marginBottom:5,alignItems:"flex-start"}}>
+        <div style={{minWidth:20,height:20,borderRadius:"50%",background:P.purple,display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,fontWeight:700,color:P.text,marginTop:8}}>{i+1}</div>
+        <textarea style={{...iSt,resize:"vertical",minHeight:34}} value={s} placeholder={`Steg ${i+1}…`} onChange={e=>{const a=[...r.steps];a[i]=e.target.value;setF("steps",a);}}/>
+        <button onClick={()=>setF("steps",r.steps.filter((_,j)=>j!==i))} style={{background:P.pink,border:"none",borderRadius:6,cursor:"pointer",fontSize:12,padding:"4px 7px",marginTop:4}}>×</button>
+      </div>)}
+    </div>
+
+    <div style={{display:"flex",gap:10,justifyContent:"flex-end"}}>
+      <button onClick={onCancel} style={{background:P.border,border:"none",borderRadius:10,padding:"7px 18px",cursor:"pointer",fontFamily:"Lato",color:P.text}}>Avbryt</button>
+      <button onClick={()=>r.name.trim()&&onSave(r)} style={{background:P.greenDk,border:"none",borderRadius:10,padding:"7px 22px",cursor:"pointer",fontFamily:"Lato",color:"#fff",fontWeight:700}}>Lagre</button>
+    </div>
+  </div>;
+}
+
+// ─── RECIPE DETAIL ────────────────────────────────────────────────────────────
+function RecipeDetail({recipe,pantry,visibleNutr,onClose,onEdit,onDelete,onAddToPlan}){
+  const [brand,setBrand]=useState(true);
+  const nutr=calcNutr(recipe.ingredients,recipe.servings);
+  const mc=MC[recipe.mealType]||MC["Middag"];
+  const hasLinked=recipe.ingredients.some(i=>i.pantryId);
+  const dispName=ing=>{if(!ing.pantryId)return ing.name;const p=pantry.find(x=>x.id===ing.pantryId);if(!p)return ing.name;return brand?p.brandName:(p.genericTag||p.brandName);};
+  const allergens=[...new Set(recipe.ingredients.flatMap(ing=>{if(!ing.pantryId)return[];const p=pantry.find(x=>x.id===ing.pantryId);return p?.allergens||[];}))];
+
+  return <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.55)",zIndex:500,display:"flex",alignItems:"flex-start",justifyContent:"center",padding:"20px 12px",overflowY:"auto"}}>
+    <div style={{background:P.card,borderRadius:18,width:"100%",maxWidth:560,boxShadow:"0 8px 40px rgba(0,0,0,0.18)",overflow:"hidden"}}>
+      {recipe.image&&<div style={{width:"100%",height:220,overflow:"hidden"}}><img src={recipe.image} alt="" style={{width:"100%",height:"100%",objectFit:"cover",display:"block"}}/></div>}
+      <div style={{background:mc.bg,padding:"13px 16px",display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
+        <div style={{display:"flex",gap:8,alignItems:"center"}}>
+          <span style={{fontSize:20}}>{mc.icon}</span>
+          <div>
+            <div style={{fontFamily:"Playfair Display",fontSize:17,fontWeight:700,color:P.text}}>{recipe.name}</div>
+            <div style={{fontSize:11,color:P.muted,fontFamily:"Lato"}}>{recipe.mealType} · {recipe.servings} porsjon{recipe.servings>1?"er":""} · {recipe.tempType||"Varmmat"}</div>
           </div>
         </div>
-      </div>;
-    }
+        <button onClick={onClose} style={{background:"rgba(0,0,0,0.1)",border:"none",borderRadius:8,padding:"4px 10px",cursor:"pointer",fontSize:16,color:P.text}}>✕</button>
+      </div>
+      <div style={{padding:"16px 18px"}}>
+        <div style={{marginBottom:12}}><NutrBadges nutr={nutr} visibleNutr={visibleNutr}/></div>
 
-    function RecipeCard({recipe,pantry,onEdit,onDelete,onAddToPlan}){
-      const [showDetail,setShowDetail]=useState(false);
-      const nutr=calcNutr(recipe.ingredients,recipe.servings);
-      const mc=MC[recipe.mealType]||MC["Middag"];
-      const allergens=[...new Set(recipe.ingredients.flatMap(ing=>{if(!ing.pantryId)return[];const p=pantry.find(x=>x.id===ing.pantryId);return p?.allergens||[];}))];
-      return <>
-        {showDetail&&<RecipeDetail recipe={recipe} pantry={pantry} onClose={()=>setShowDetail(false)} onEdit={onEdit} onDelete={onDelete} onAddToPlan={onAddToPlan}/>}
-        <div onClick={()=>setShowDetail(true)} style={{background:P.card,borderRadius:14,border:`1.5px solid ${P.border}`,overflow:"hidden",cursor:"pointer",display:"flex",minHeight:100}} onMouseEnter={e=>e.currentTarget.style.boxShadow="0 3px 14px rgba(0,0,0,0.09)"} onMouseLeave={e=>e.currentTarget.style.boxShadow="none"}>
-          <div style={{flex:1,display:"flex",flexDirection:"column",padding:"11px 13px",minWidth:0}}>
-            <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:4}}><span style={{fontSize:15}}>{mc.icon}</span><div style={{fontFamily:"'Playfair Display', serif",fontSize:14,fontWeight:600,color:P.text,lineHeight:1.2}}>{recipe.name}</div></div>
-            <div style={{fontSize:10,color:P.muted,fontFamily:"Lato, sans-serif",marginBottom:7}}>{recipe.mealType} · {recipe.servings} porsjon{recipe.servings>1?"er":""}</div>
-            <NutrBadges nutr={nutr} compact={true}/>
-            {allergens.length>0&&<div style={{display:"flex",flexWrap:"wrap",gap:3,marginTop:6}}>{allergens.map(a=><span key={a} style={{background:"#FFCDD2",border:"1px solid #EF9A9A",borderRadius:20,padding:"1px 6px",fontSize:9,color:"#b71c1c",fontFamily:"Lato, sans-serif"}}>⚠ {a}</span>)}</div>}
-            <div style={{marginTop:"auto",paddingTop:8,display:"flex",gap:5}} onClick={e=>e.stopPropagation()}>
-              <span style={{fontSize:10,background:recipe.category==="Kaloriunderskudd"?P.green:P.pink,borderRadius:20,padding:"2px 8px",color:P.text,fontFamily:"Lato, sans-serif"}}>{recipe.category==="Kaloriunderskudd"?"🥦 Underskudd":"🎂 Fri"}</span>
-              <button onClick={()=>onAddToPlan(recipe)} style={{marginLeft:"auto",background:P.blue,border:"none",borderRadius:8,padding:"3px 9px",cursor:"pointer",fontSize:10,fontFamily:"Lato, sans-serif",color:P.text}}>+ Plan</button>
-              <button onClick={()=>onEdit(recipe)} style={{background:P.yellow,border:"none",borderRadius:8,padding:"3px 8px",cursor:"pointer",fontSize:11}}>✎</button>
-              <button onClick={()=>onDelete(recipe.id)} style={{background:P.pink,border:"none",borderRadius:8,padding:"3px 8px",cursor:"pointer",fontSize:11}}>✕</button>
-            </div>
-          </div>
-          {recipe.image&&<div style={{width:110,flexShrink:0,overflow:"hidden"}}><img src={recipe.image} alt="" style={{width:"100%",height:"100%",objectFit:"cover",display:"block"}}/></div>}
-        </div>
-      </>;
-    }
-
-    function AddMealBtn({recipes,onAdd}){
-      const [open,setOpen]=useState(false);const ref=useRef();
-      useEffect(()=>{const h=e=>{if(ref.current&&!ref.current.contains(e.target))setOpen(false);};document.addEventListener("mousedown",h);return()=>document.removeEventListener("mousedown",h);},[]);
-      return <div ref={ref} style={{position:"relative"}}>
-        <button onClick={()=>setOpen(x=>!x)} style={{background:P.border,border:"none",borderRadius:8,padding:"4px 9px",cursor:"pointer",fontSize:11,fontFamily:"Lato, sans-serif",color:P.text}}>+ Legg til</button>
-        {open&&<div style={{position:"absolute",top:28,left:0,background:P.card,border:`1px solid ${P.border}`,borderRadius:10,padding:5,zIndex:100,minWidth:170,boxShadow:"0 4px 16px rgba(0,0,0,0.08)"}}>
-          {recipes.length===0&&<div style={{fontSize:11,color:P.muted,fontFamily:"Lato, sans-serif",padding:"4px 6px"}}>Ingen oppskrifter</div>}
-          {recipes.map(r=><div key={r.id} onClick={()=>{onAdd(r.id);setOpen(false);}} style={{padding:"5px 8px",cursor:"pointer",borderRadius:6,fontFamily:"Lato, sans-serif",fontSize:12,color:P.text}} onMouseEnter={e=>e.currentTarget.style.background=P.bg} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>{r.name}</div>)}
+        {/* Storage info */}
+        {(recipe.fridgeDays||recipe.canFreeze||recipe.needsCold)&&<div style={{background:P.bg,borderRadius:10,padding:"8px 12px",marginBottom:12,display:"flex",gap:12,flexWrap:"wrap",fontSize:12,fontFamily:"Lato",color:P.text}}>
+          {recipe.fridgeDays&&<span>🧊 Kjøleskap: {recipe.fridgeDays} dager</span>}
+          {recipe.canFreeze&&recipe.freezeDays&&<span>❄️ Frysing: {recipe.freezeDays} dager</span>}
+          {recipe.canFreeze&&!recipe.freezeDays&&<span>❄️ Kan fryses</span>}
+          {recipe.needsCold&&<span>🌡️ Oppbevares kjølig</span>}
         </div>}
-      </div>;
-    }
 
-    function WeekPlan({recipes,weekPlan,setWeekPlan,addToPlanTarget,setAddToPlanTarget}){
-      const [day,setDay]=useState("Mandag");
-      const addToDay=(d,mt,id)=>setWeekPlan(wp=>{const u={...wp};u[d]={...u[d]};u[d][mt]=[...(u[d][mt]||[]),{rid:id,portions:1}];return u;});
-      const removeFromDay=(d,mt,i)=>setWeekPlan(wp=>{const u={...wp};u[d]={...u[d]};u[d][mt]=u[d][mt].filter((_,j)=>j!==i);return u;});
-      const setPortions=(d,mt,i,val)=>setWeekPlan(wp=>{const u={...wp};u[d]={...u[d]};const e=[...u[d][mt]];const en=typeof e[i]==="object"?{...e[i]}:{rid:e[i],portions:1};en.portions=Math.max(1,parseInt(val)||1);e[i]=en;u[d][mt]=e;return u;});
-      const dayNutr=d=>{const t={};NUTR_FIELDS.forEach(f=>{t[f.key]=0;});MEAL_TYPES.forEach(mt=>getEntries(weekPlan,d,mt).forEach(({rid})=>{const r=recipes.find(x=>x.id===rid);if(r){const n=calcNutr(r.ingredients,r.servings);NUTR_FIELDS.forEach(f=>{t[f.key]+=n[f.key]||0;});}}));const o={};NUTR_FIELDS.forEach(f=>{o[f.key]=Math.round(t[f.key]*10)/10;});o.kcal=Math.round(t.kcal);return o;};
-      useEffect(()=>{if(addToPlanTarget){addToDay(day,addToPlanTarget.mealType,addToPlanTarget.id);setAddToPlanTarget(null);}},[addToPlanTarget]);
-      return <div>
-        <div style={{display:"flex",gap:5,flexWrap:"wrap",marginBottom:14}}>
-          {DAYS.map(d=>{const dn=dayNutr(d);return <button key={d} onClick={()=>setDay(d)} style={{background:day===d?P.purpleDk:P.card,border:`1.5px solid ${day===d?P.purpleDk:P.border}`,borderRadius:10,padding:"5px 10px",cursor:"pointer",fontFamily:"Lato, sans-serif",fontSize:12,color:day===d?"#fff":P.text}}><div>{d.slice(0,3)}</div><div style={{fontSize:9,opacity:0.8}}>{dn.kcal} kcal</div></button>;})}
+        {allergens.length>0&&<div style={{display:"flex",flexWrap:"wrap",gap:4,marginBottom:12}}>{allergens.map(a=><span key={a} style={{background:"#FFCDD2",border:"1px solid #EF9A9A",borderRadius:20,padding:"2px 9px",fontSize:11,color:"#b71c1c",fontFamily:"Lato"}}>⚠ {a}</span>)}</div>}
+        {hasLinked&&<div style={{marginBottom:10}}><button onClick={()=>setBrand(b=>!b)} style={{background:brand?P.teal:P.peach,border:"none",borderRadius:20,padding:"3px 12px",cursor:"pointer",fontFamily:"Lato",fontSize:11,color:P.text}}>{brand?"🏷️ Merkenavn":"🥛 Generisk"}</button></div>}
+
+        <div style={{marginBottom:14}}><div style={{fontFamily:"Playfair Display",fontSize:15,color:P.text,marginBottom:6}}>Ingredienser</div><ul style={{margin:0,paddingLeft:18,fontFamily:"Lato",fontSize:13,color:P.text}}>{recipe.ingredients.filter(i=>i.name.trim()).map((ing,i)=><li key={i} style={{marginBottom:3}}>{ing.amount} {ing.unit} {dispName(ing)}</li>)}</ul></div>
+        {recipe.steps.filter(s=>s.trim()).length>0&&<div style={{marginBottom:16}}><div style={{fontFamily:"Playfair Display",fontSize:15,color:P.text,marginBottom:6}}>Fremgangsmåte</div><ol style={{margin:0,paddingLeft:18,fontFamily:"Lato",fontSize:13,color:P.text}}>{recipe.steps.filter(s=>s.trim()).map((s,i)=><li key={i} style={{marginBottom:6,lineHeight:1.5}}>{s}</li>)}</ol></div>}
+
+        <div style={{display:"flex",gap:7,paddingTop:8,borderTop:`1px solid ${P.border}`}}>
+          <button onClick={()=>{onAddToPlan(recipe);onClose();}} style={{flex:1,background:P.blue,border:"none",borderRadius:10,padding:"8px 0",cursor:"pointer",fontSize:12,fontFamily:"Lato",color:P.text}}>+ Legg i plan</button>
+          <button onClick={()=>{onEdit(recipe);onClose();}} style={{background:P.yellow,border:"none",borderRadius:10,padding:"8px 13px",cursor:"pointer",fontSize:13}}>✎</button>
+          <button onClick={()=>{onDelete(recipe.id);onClose();}} style={{background:P.pink,border:"none",borderRadius:10,padding:"8px 13px",cursor:"pointer",fontSize:13}}>✕</button>
         </div>
-        <div style={{background:P.card,borderRadius:14,border:`1px solid ${P.border}`,padding:16}}>
-          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14,flexWrap:"wrap",gap:8}}>
-            <h3 style={{margin:0,fontFamily:"'Playfair Display', serif",color:P.text}}>{day}</h3>
-            <div style={{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:3}}><NutrBadges nutr={dayNutr(day)} compact={true}/><div style={{fontSize:10,color:P.muted,fontFamily:"Lato, sans-serif"}}>Næring per porsjon for deg</div></div>
-          </div>
-          {MEAL_TYPES.map(mt=>{const mc=MC[mt];const entries=getEntries(weekPlan,day,mt);return <div key={mt} style={{marginBottom:12}}>
-            <div style={{fontSize:12,fontWeight:600,color:P.text,fontFamily:"Lato, sans-serif",marginBottom:5}}>{mc.icon} {mt}</div>
-            <div style={{display:"flex",gap:6,flexWrap:"wrap",alignItems:"center"}}>
-              {entries.map(({rid,portions},i)=>{const r=recipes.find(x=>x.id===rid);if(!r)return null;const n=calcNutr(r.ingredients,r.servings);return <div key={i} style={{background:mc.bg,border:`1px solid ${mc.border}30`,borderRadius:10,padding:"5px 10px",display:"flex",gap:6,alignItems:"center",fontSize:11,fontFamily:"Lato, sans-serif",color:P.text}}>
-                <span style={{fontWeight:600}}>{r.name}</span><span style={{color:P.muted,fontSize:10}}>{n.kcal} kcal</span>
-                <div style={{display:"flex",alignItems:"center",gap:3,background:"rgba(0,0,0,0.06)",borderRadius:7,padding:"1px 4px"}}>
-                  <button onClick={()=>setPortions(day,mt,i,portions-1)} style={{background:"none",border:"none",cursor:"pointer",fontSize:12,color:P.text,padding:"0 2px"}}>−</button>
-                  <span style={{fontSize:11,minWidth:14,textAlign:"center"}}>{portions}</span>
-                  <button onClick={()=>setPortions(day,mt,i,portions+1)} style={{background:"none",border:"none",cursor:"pointer",fontSize:12,color:P.text,padding:"0 2px"}}>+</button>
-                  <span style={{fontSize:9,color:P.muted}}>porsj.</span>
-                </div>
-                <button onClick={()=>removeFromDay(day,mt,i)} style={{background:"none",border:"none",cursor:"pointer",color:P.muted,fontSize:13,padding:0}}>×</button>
-              </div>;})}
-              <AddMealBtn recipes={recipes.filter(r=>r.mealType===mt)} onAdd={id=>addToDay(day,mt,id)}/>
+      </div>
+    </div>
+  </div>;
+}
+
+// ─── RECIPE CARD ──────────────────────────────────────────────────────────────
+function RecipeCard({recipe,pantry,visibleNutr,onEdit,onDelete,onAddToPlan,onToggleFav}){
+  const [showDetail,setShowDetail]=useState(false);
+  const nutr=calcNutr(recipe.ingredients,recipe.servings);
+  const mc=MC[recipe.mealType]||MC["Middag"];
+  const allergens=[...new Set(recipe.ingredients.flatMap(ing=>{if(!ing.pantryId)return[];const p=pantry.find(x=>x.id===ing.pantryId);return p?.allergens||[];}))];
+
+  return <>
+    {showDetail&&<RecipeDetail recipe={recipe} pantry={pantry} visibleNutr={visibleNutr} onClose={()=>setShowDetail(false)} onEdit={onEdit} onDelete={onDelete} onAddToPlan={onAddToPlan}/>}
+    <div onClick={()=>setShowDetail(true)} style={{background:P.card,borderRadius:14,border:`1.5px solid ${P.border}`,overflow:"hidden",cursor:"pointer",display:"flex",minHeight:100}} onMouseEnter={e=>e.currentTarget.style.boxShadow="0 3px 14px rgba(0,0,0,0.09)"} onMouseLeave={e=>e.currentTarget.style.boxShadow="none"}>
+      <div style={{flex:1,display:"flex",flexDirection:"column",padding:"11px 13px",minWidth:0}}>
+        <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:3}}>
+          <span style={{fontSize:14}}>{mc.icon}</span>
+          <div style={{fontFamily:"Playfair Display",fontSize:14,fontWeight:600,color:P.text,lineHeight:1.2,flex:1}}>{recipe.name}</div>
+          <button onClick={e=>{e.stopPropagation();onToggleFav(recipe);}} style={{background:"none",border:"none",cursor:"pointer",fontSize:16,lineHeight:1,flexShrink:0}}>{recipe.favorite?"⭐":"☆"}</button>
+        </div>
+        <div style={{fontSize:10,color:P.muted,fontFamily:"Lato",marginBottom:6}}>{recipe.mealType} · {recipe.tempType||""} · {recipe.servings} porsjon{recipe.servings>1?"er":""}</div>
+
+        {/* Storage chips */}
+        {(recipe.fridgeDays||recipe.canFreeze||recipe.needsCold)&&<div style={{display:"flex",gap:4,flexWrap:"wrap",marginBottom:6}}>
+          {recipe.fridgeDays&&<span style={{fontSize:10,background:P.blue,borderRadius:20,padding:"1px 7px",color:P.text,fontFamily:"Lato"}}>🧊 {recipe.fridgeDays}d</span>}
+          {recipe.canFreeze&&<span style={{fontSize:10,background:"#E3F2FD",borderRadius:20,padding:"1px 7px",color:P.text,fontFamily:"Lato"}}>❄️ Kan fryses</span>}
+          {recipe.needsCold&&<span style={{fontSize:10,background:"#E1F5FE",borderRadius:20,padding:"1px 7px",color:P.text,fontFamily:"Lato"}}>🌡️ Kjølig</span>}
+        </div>}
+
+        <NutrBadges nutr={nutr} visibleNutr={visibleNutr} compact={true}/>
+        {allergens.length>0&&<div style={{display:"flex",flexWrap:"wrap",gap:3,marginTop:5}}>{allergens.map(a=><span key={a} style={{background:"#FFCDD2",border:"1px solid #EF9A9A",borderRadius:20,padding:"1px 5px",fontSize:9,color:"#b71c1c",fontFamily:"Lato"}}>⚠ {a}</span>)}</div>}
+
+        <div style={{marginTop:"auto",paddingTop:7,display:"flex",gap:5}} onClick={e=>e.stopPropagation()}>
+          <span style={{fontSize:10,background:recipe.category==="Kaloriunderskudd"?P.green:P.pink,borderRadius:20,padding:"2px 8px",color:P.text,fontFamily:"Lato"}}>{recipe.category==="Kaloriunderskudd"?"🥦 Underskudd":"🎂 Fri"}</span>
+          <button onClick={()=>onAddToPlan(recipe)} style={{marginLeft:"auto",background:P.blue,border:"none",borderRadius:8,padding:"3px 9px",cursor:"pointer",fontSize:10,fontFamily:"Lato",color:P.text}}>+ Plan</button>
+          <button onClick={()=>onEdit(recipe)} style={{background:P.yellow,border:"none",borderRadius:8,padding:"3px 8px",cursor:"pointer",fontSize:11}}>✎</button>
+          <button onClick={()=>onDelete(recipe.id)} style={{background:P.pink,border:"none",borderRadius:8,padding:"3px 8px",cursor:"pointer",fontSize:11}}>✕</button>
+        </div>
+      </div>
+      {recipe.image&&<div style={{width:100,flexShrink:0,overflow:"hidden"}}><img src={recipe.image} alt="" style={{width:"100%",height:"100%",objectFit:"cover",display:"block"}}/></div>}
+    </div>
+  </>;
+}
+
+// ─── WEEK PLAN ────────────────────────────────────────────────────────────────
+function AddMealBtn({recipes,onAdd}){
+  const [open,setOpen]=useState(false);const ref=useRef();
+  useEffect(()=>{const h=e=>{if(ref.current&&!ref.current.contains(e.target))setOpen(false);};document.addEventListener("mousedown",h);return()=>document.removeEventListener("mousedown",h);},[]);
+  return <div ref={ref} style={{position:"relative"}}>
+    <button onClick={()=>setOpen(x=>!x)} style={{background:P.border,border:"none",borderRadius:8,padding:"4px 9px",cursor:"pointer",fontSize:11,fontFamily:"Lato",color:P.text}}>+ Legg til</button>
+    {open&&<div style={{position:"absolute",top:28,left:0,background:P.card,border:`1px solid ${P.border}`,borderRadius:10,padding:5,zIndex:100,minWidth:170,boxShadow:"0 4px 16px rgba(0,0,0,0.08)"}}>
+      {recipes.length===0&&<div style={{fontSize:11,color:P.muted,fontFamily:"Lato",padding:"4px 6px"}}>Ingen oppskrifter</div>}
+      {recipes.map(r=><div key={r.id} onClick={()=>{onAdd(r.id);setOpen(false);}} style={{padding:"5px 8px",cursor:"pointer",borderRadius:6,fontFamily:"Lato",fontSize:12,color:P.text}} onMouseEnter={e=>e.currentTarget.style.background=P.bg} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>{r.name}</div>)}
+    </div>}
+  </div>;
+}
+
+function WeekPlan({recipes,weekPlan,setWeekPlan,addToPlanTarget,setAddToPlanTarget,visibleNutr}){
+  const [day,setDay]=useState("Mandag");
+  const addToDay=(d,mt,id)=>setWeekPlan(wp=>{const u={...wp};u[d]={...u[d]};u[d][mt]=[...(u[d][mt]||[]),{rid:id,portions:1}];return u;});
+  const removeFromDay=(d,mt,i)=>setWeekPlan(wp=>{const u={...wp};u[d]={...u[d]};u[d][mt]=u[d][mt].filter((_,j)=>j!==i);return u;});
+  const setPortions=(d,mt,i,val)=>setWeekPlan(wp=>{const u={...wp};u[d]={...u[d]};const e=[...u[d][mt]];const en=typeof e[i]==="object"?{...e[i]}:{rid:e[i],portions:1};en.portions=Math.max(1,parseInt(val)||1);e[i]=en;u[d][mt]=e;return u;});
+  const dayNutr=d=>{const t={};ALL_NUTR.forEach(f=>{t[f.key]=0;});MEAL_TYPES.forEach(mt=>getEntries(weekPlan,d,mt).forEach(({rid})=>{const r=recipes.find(x=>x.id===rid);if(r){const n=calcNutr(r.ingredients,r.servings);ALL_NUTR.forEach(f=>{t[f.key]+=n[f.key]||0;});}}));const o={};ALL_NUTR.forEach(f=>{o[f.key]=Math.round(t[f.key]*10)/10;});o.kcal=Math.round(t.kcal);return o;};
+  useEffect(()=>{if(addToPlanTarget){addToDay(day,addToPlanTarget.mealType,addToPlanTarget.id);setAddToPlanTarget(null);}},[addToPlanTarget]);
+
+  return <div>
+    <div style={{display:"flex",gap:5,flexWrap:"wrap",marginBottom:14}}>
+      {DAYS.map(d=>{const dn=dayNutr(d);return <button key={d} onClick={()=>setDay(d)} style={{background:day===d?P.purpleDk:P.card,border:`1.5px solid ${day===d?P.purpleDk:P.border}`,borderRadius:10,padding:"5px 10px",cursor:"pointer",fontFamily:"Lato",fontSize:12,color:day===d?"#fff":P.text}}><div>{d.slice(0,3)}</div><div style={{fontSize:9,opacity:0.8}}>{visibleNutr.kcal?dn.kcal+" kcal":""}</div></button>;})}
+    </div>
+    <div style={{background:P.card,borderRadius:14,border:`1px solid ${P.border}`,padding:16}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14,flexWrap:"wrap",gap:8}}>
+        <h3 style={{margin:0,fontFamily:"Playfair Display",color:P.text}}>{day}</h3>
+        <div style={{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:3}}>
+          <NutrBadges nutr={dayNutr(day)} visibleNutr={visibleNutr} compact={true}/>
+          <div style={{fontSize:10,color:P.muted,fontFamily:"Lato"}}>Næring per porsjon for deg</div>
+        </div>
+      </div>
+      {MEAL_TYPES.map(mt=>{const mc=MC[mt];const entries=getEntries(weekPlan,day,mt);return <div key={mt} style={{marginBottom:12}}>
+        <div style={{fontSize:12,fontWeight:600,color:P.text,fontFamily:"Lato",marginBottom:5}}>{mc.icon} {mt}</div>
+        <div style={{display:"flex",gap:6,flexWrap:"wrap",alignItems:"center"}}>
+          {entries.map(({rid,portions},i)=>{const r=recipes.find(x=>x.id===rid);if(!r)return null;const n=calcNutr(r.ingredients,r.servings);return <div key={i} style={{background:mc.bg,border:`1px solid ${mc.border}30`,borderRadius:10,padding:"5px 10px",display:"flex",gap:6,alignItems:"center",fontSize:11,fontFamily:"Lato",color:P.text}}>
+            <span style={{fontWeight:600}}>{r.name}</span>
+            {visibleNutr.kcal&&<span style={{color:P.muted,fontSize:10}}>{n.kcal} kcal</span>}
+            <div style={{display:"flex",alignItems:"center",gap:3,background:"rgba(0,0,0,0.06)",borderRadius:7,padding:"1px 4px"}}>
+              <button onClick={()=>setPortions(day,mt,i,portions-1)} style={{background:"none",border:"none",cursor:"pointer",fontSize:12,color:P.text,padding:"0 2px"}}>−</button>
+              <span style={{fontSize:11,minWidth:14,textAlign:"center"}}>{portions}</span>
+              <button onClick={()=>setPortions(day,mt,i,portions+1)} style={{background:"none",border:"none",cursor:"pointer",fontSize:12,color:P.text,padding:"0 2px"}}>+</button>
+              <span style={{fontSize:9,color:P.muted}}>porsj.</span>
             </div>
+            <button onClick={()=>removeFromDay(day,mt,i)} style={{background:"none",border:"none",cursor:"pointer",color:P.muted,fontSize:13,padding:0}}>×</button>
           </div>;})}
+          <AddMealBtn recipes={recipes.filter(r=>r.mealType===mt)} onAdd={id=>addToDay(day,mt,id)}/>
         </div>
-      </div>;
-    }
+      </div>;})}
+    </div>
+  </div>;
+}
 
-    function ShoppingList({recipes,weekPlan,pantry}){
-      const buildList=()=>{const items={};DAYS.forEach(d=>MEAL_TYPES.forEach(mt=>getEntries(weekPlan,d,mt).forEach(({rid,portions})=>{const r=recipes.find(x=>x.id===rid);if(!r)return;const mult=(portions||1)/(r.servings||1);r.ingredients.forEach(ing=>{if(!ing.name.trim())return;const key=`${ing.name.toLowerCase().trim()}__${ing.unit.toLowerCase().trim()}`;if(!items[key]){const pi=ing.pantryId?pantry.find(p=>p.id===ing.pantryId):null;items[key]={name:ing.name,unit:ing.unit,amount:0,pantryItem:pi};}items[key].amount+=(parseFloat(ing.amount)||0)*mult;});}))); return Object.values(items).sort((a,b)=>a.name.localeCompare(b.name,"no"));};
-      const list=buildList();const [checked,setChecked]=useState({});
-      return <div style={{background:P.card,borderRadius:14,border:`1px solid ${P.border}`,padding:20}}>
-        <div style={{display:"flex",justifyContent:"space-between",marginBottom:14}}><h3 style={{margin:0,fontFamily:"'Playfair Display', serif",color:P.text}}>🛒 Handleliste for uka</h3><span style={{fontSize:11,color:P.muted,fontFamily:"Lato, sans-serif"}}>{list.length} varer</span></div>
-        {list.length===0&&<div style={{color:P.muted,fontFamily:"Lato, sans-serif",fontSize:13}}>Ingen måltider i ukeplanen ennå.</div>}
-        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6}}>
-          {list.map(it=>{const k=it.name+it.unit;return <div key={k} onClick={()=>setChecked(c=>({...c,[k]:!c[k]}))} style={{display:"flex",alignItems:"center",gap:8,padding:"8px 11px",background:checked[k]?"#F0F0F0":P.bg,borderRadius:10,cursor:"pointer",opacity:checked[k]?0.5:1,border:`1px solid ${P.border}`}}>
-            <div style={{width:16,height:16,borderRadius:4,border:`2px solid ${P.greenDk}`,background:checked[k]?P.greenDk:"transparent",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center"}}>{checked[k]&&<span style={{color:"#fff",fontSize:9}}>✓</span>}</div>
-            <div style={{flex:1}}><div style={{fontFamily:"Lato, sans-serif",fontSize:13,color:P.text,textDecoration:checked[k]?"line-through":"none",fontWeight:600}}>{it.name}</div>{it.pantryItem?.genericTag&&<div style={{fontSize:9,color:P.tealDk}}>#{it.pantryItem.genericTag}</div>}</div>
-            <span style={{fontFamily:"Lato, sans-serif",fontSize:12,color:P.muted,fontWeight:700,whiteSpace:"nowrap"}}>{it.amount%1===0?it.amount:Math.round(it.amount*10)/10} {it.unit}</span>
-          </div>;})}
-        </div>
-      </div>;
-    }
+// ─── SHOPPING LIST ────────────────────────────────────────────────────────────
+function ShoppingList({recipes,weekPlan,pantry}){
+  const buildList=()=>{const items={};DAYS.forEach(d=>MEAL_TYPES.forEach(mt=>getEntries(weekPlan,d,mt).forEach(({rid,portions})=>{const r=recipes.find(x=>x.id===rid);if(!r)return;const mult=(portions||1)/(r.servings||1);r.ingredients.forEach(ing=>{if(!ing.name.trim())return;const key=`${ing.name.toLowerCase().trim()}__${ing.unit.toLowerCase().trim()}`;if(!items[key]){const pi=ing.pantryId?pantry.find(p=>p.id===ing.pantryId):null;items[key]={name:ing.name,unit:ing.unit,amount:0,pantryItem:pi};}items[key].amount+=(parseFloat(ing.amount)||0)*mult;});}))); return Object.values(items).sort((a,b)=>a.name.localeCompare(b.name,"no"));};
+  const list=buildList();const [checked,setChecked]=useState({});
+  return <div style={{background:P.card,borderRadius:14,border:`1px solid ${P.border}`,padding:20}}>
+    <div style={{display:"flex",justifyContent:"space-between",marginBottom:14}}><h3 style={{margin:0,fontFamily:"Playfair Display",color:P.text}}>🛒 Handleliste for uka</h3><span style={{fontSize:11,color:P.muted,fontFamily:"Lato"}}>{list.length} varer</span></div>
+    {list.length===0&&<div style={{color:P.muted,fontFamily:"Lato",fontSize:13}}>Ingen måltider i ukeplanen ennå.</div>}
+    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6}}>
+      {list.map(it=>{const k=it.name+it.unit;return <div key={k} onClick={()=>setChecked(c=>({...c,[k]:!c[k]}))} style={{display:"flex",alignItems:"center",gap:8,padding:"8px 11px",background:checked[k]?"#F0F0F0":P.bg,borderRadius:10,cursor:"pointer",opacity:checked[k]?0.5:1,border:`1px solid ${P.border}`}}>
+        <div style={{width:16,height:16,borderRadius:4,border:`2px solid ${P.greenDk}`,background:checked[k]?P.greenDk:"transparent",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center"}}>{checked[k]&&<span style={{color:"#fff",fontSize:9}}>✓</span>}</div>
+        <div style={{flex:1}}><div style={{fontFamily:"Lato",fontSize:13,color:P.text,textDecoration:checked[k]?"line-through":"none",fontWeight:600}}>{it.name}</div>{it.pantryItem?.genericTag&&<div style={{fontSize:9,color:P.tealDk}}>#{it.pantryItem.genericTag}</div>}</div>
+        <span style={{fontFamily:"Lato",fontSize:12,color:P.muted,fontWeight:700,whiteSpace:"nowrap"}}>{it.amount%1===0?it.amount:Math.round(it.amount*10)/10} {it.unit}</span>
+      </div>;})}
+    </div>
+  </div>;
+}
 
-    function StatsTab({recipes,weekPlan,weekHistory}){
-      const [offset,setOffset]=useState(0);
-      const allKeys=[getWeekKey(0),...Object.keys(weekHistory)].filter((v,i,a)=>a.indexOf(v)===i).sort().reverse();
-      const key=allKeys[offset]||getWeekKey(0);
-      const plan=key===getWeekKey(0)?weekPlan:(weekHistory[key]||emptyWeekPlan());
-      const dayNutr=d=>{const t={};NUTR_FIELDS.forEach(f=>{t[f.key]=0;});MEAL_TYPES.forEach(mt=>getEntries(plan,d,mt).forEach(({rid})=>{const r=recipes.find(x=>x.id===rid);if(r){const n=calcNutr(r.ingredients,r.servings);NUTR_FIELDS.forEach(f=>{t[f.key]+=n[f.key]||0;});}}));return t;};
-      const wt=()=>{const t={};NUTR_FIELDS.forEach(f=>{t[f.key]=0;});DAYS.forEach(d=>{const dn=dayNutr(d);NUTR_FIELDS.forEach(f=>{t[f.key]+=dn[f.key]||0;});});const o={};NUTR_FIELDS.forEach(f=>{o[f.key]=Math.round(t[f.key]*10)/10;});o.kcal=Math.round(t.kcal);return o;};
-      const maxKcal=Math.max(...DAYS.map(d=>dayNutr(d).kcal||0),1);
-      const kcalColor=k=>{if(k===0)return P.border;if(k<1200)return"#BBDEFB";if(k<=2500)return P.greenDk;return"#FFAB91";};
-      const totals=wt();
-      return <div>
-        <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:20,background:P.card,borderRadius:14,padding:"12px 16px",border:`1px solid ${P.border}`}}>
-          <button onClick={()=>setOffset(o=>Math.min(o+1,allKeys.length-1))} disabled={offset>=allKeys.length-1} style={{background:P.purple,border:"none",borderRadius:8,padding:"5px 12px",cursor:"pointer",fontSize:14,opacity:offset>=allKeys.length-1?0.4:1}}>‹</button>
-          <div style={{flex:1,textAlign:"center"}}><div style={{fontFamily:"'Playfair Display', serif",fontSize:17,color:P.text}}>{weekLabel(key)}</div>{offset===0&&<div style={{fontSize:11,color:P.tealDk,fontFamily:"Lato, sans-serif"}}>Inneværende uke</div>}</div>
-          <button onClick={()=>setOffset(o=>Math.max(o-1,0))} disabled={offset===0} style={{background:P.purple,border:"none",borderRadius:8,padding:"5px 12px",cursor:"pointer",fontSize:14,opacity:offset===0?0.4:1}}>›</button>
+// ─── STATS ────────────────────────────────────────────────────────────────────
+function StatsTab({recipes,weekPlan,weekHistory,visibleNutr}){
+  const [off,setOff]=useState(0);
+  const allKeys=[getWeekKey(0),...Object.keys(weekHistory)].filter((v,i,a)=>a.indexOf(v)===i).sort().reverse();
+  const key=allKeys[off]||getWeekKey(0);
+  const plan=key===getWeekKey(0)?weekPlan:(weekHistory[key]||emptyWeekPlan());
+  const dayNutr=d=>{const t={};ALL_NUTR.forEach(f=>{t[f.key]=0;});MEAL_TYPES.forEach(mt=>getEntries(plan,d,mt).forEach(({rid})=>{const r=recipes.find(x=>x.id===rid);if(r){const n=calcNutr(r.ingredients,r.servings);ALL_NUTR.forEach(f=>{t[f.key]+=n[f.key]||0;});}}));return t;};
+  const wt=()=>{const t={};ALL_NUTR.forEach(f=>{t[f.key]=0;});DAYS.forEach(d=>{const dn=dayNutr(d);ALL_NUTR.forEach(f=>{t[f.key]+=dn[f.key]||0;});});const o={};ALL_NUTR.forEach(f=>{o[f.key]=Math.round(t[f.key]*10)/10;});o.kcal=Math.round(t.kcal);return o;};
+  const maxKcal=Math.max(...DAYS.map(d=>dayNutr(d).kcal||0),1);
+  const kcalColor=k=>{if(k===0)return P.border;if(k<1200)return"#BBDEFB";if(k<=2500)return P.greenDk;return"#FFAB91";};
+  const totals=wt();
+  return <div>
+    <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:20,background:P.card,borderRadius:14,padding:"12px 16px",border:`1px solid ${P.border}`}}>
+      <button onClick={()=>setOff(o=>Math.min(o+1,allKeys.length-1))} disabled={off>=allKeys.length-1} style={{background:P.purple,border:"none",borderRadius:8,padding:"5px 12px",cursor:"pointer",fontSize:14,opacity:off>=allKeys.length-1?0.4:1}}>‹</button>
+      <div style={{flex:1,textAlign:"center"}}><div style={{fontFamily:"Playfair Display",fontSize:17,color:P.text}}>{weekLabel(key)}</div>{off===0&&<div style={{fontSize:11,color:P.tealDk,fontFamily:"Lato"}}>Inneværende uke</div>}</div>
+      <button onClick={()=>setOff(o=>Math.max(o-1,0))} disabled={off===0} style={{background:P.purple,border:"none",borderRadius:8,padding:"5px 12px",cursor:"pointer",fontSize:14,opacity:off===0?0.4:1}}>›</button>
+    </div>
+    {visibleNutr.kcal&&<div style={{background:P.card,borderRadius:14,border:`1px solid ${P.border}`,padding:16,marginBottom:14}}>
+      <div style={{fontFamily:"Playfair Display",fontSize:15,color:P.text,marginBottom:14}}>Kalorier per dag</div>
+      <div style={{display:"flex",gap:6,alignItems:"flex-end",height:120}}>
+        {DAYS.map(d=>{const dn=dayNutr(d);const h=Math.round((dn.kcal/maxKcal)*100);return <div key={d} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:4}}><div style={{fontSize:10,color:P.muted,fontFamily:"Lato"}}>{dn.kcal||""}</div><div style={{width:"100%",height:`${h}%`,minHeight:dn.kcal?4:0,background:kcalColor(dn.kcal),borderRadius:"4px 4px 0 0"}}/><div style={{fontSize:10,color:P.text,fontFamily:"Lato"}}>{d.slice(0,3)}</div></div>;})}
+      </div>
+    </div>}
+    <div style={{background:P.card,borderRadius:14,border:`1px solid ${P.border}`,padding:16,marginBottom:14}}>
+      <div style={{fontFamily:"Playfair Display",fontSize:15,color:P.text,marginBottom:12}}>Totalt for uka</div>
+      <NutrBadges nutr={totals} visibleNutr={visibleNutr}/>
+      {visibleNutr.kcal&&<div style={{marginTop:10,fontSize:11,color:P.muted,fontFamily:"Lato"}}>Snitt per dag: {Math.round(totals.kcal/7)} kcal{visibleNutr.protein?` · ${Math.round(totals.protein/7*10)/10}g protein`:""}</div>}
+    </div>
+    <div style={{background:P.card,borderRadius:14,border:`1px solid ${P.border}`,padding:16}}>
+      <div style={{fontFamily:"Playfair Display",fontSize:15,color:P.text,marginBottom:12}}>Dag for dag</div>
+      {DAYS.map(d=>{const dn=dayNutr(d);const meals=MEAL_TYPES.flatMap(mt=>getEntries(plan,d,mt).map(({rid})=>{const r=recipes.find(x=>x.id===rid);return r?{name:r.name,mt}:null;})).filter(Boolean);return <div key={d} style={{padding:"8px 0",borderBottom:`1px solid ${P.border}`}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:meals.length?5:0}}>
+          <div style={{fontFamily:"Lato",fontSize:13,fontWeight:700,color:meals.length?P.text:P.muted}}>{d}</div>
+          {meals.length>0&&<div style={{display:"flex",gap:5}}>{visibleNutr.kcal&&<Badge label="Kcal" value={Math.round(dn.kcal)} unit="" color={P.yellow}/>}{visibleNutr.protein&&<Badge label="P" value={Math.round(dn.protein*10)/10} unit="g" color={P.green}/>}{visibleNutr.carbs&&<Badge label="K" value={Math.round(dn.carbs*10)/10} unit="g" color={P.blue}/>}</div>}
+          {meals.length===0&&<div style={{fontSize:11,color:P.muted,fontFamily:"Lato"}}>Ingen måltider</div>}
         </div>
-        <div style={{background:P.card,borderRadius:14,border:`1px solid ${P.border}`,padding:16,marginBottom:14}}>
-          <div style={{fontFamily:"'Playfair Display', serif",fontSize:15,color:P.text,marginBottom:14}}>Kalorier per dag</div>
-          <div style={{display:"flex",gap:6,alignItems:"flex-end",height:120}}>
-            {DAYS.map(d=>{const dn=dayNutr(d);const h=Math.round((dn.kcal/maxKcal)*100);return <div key={d} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:4}}><div style={{fontSize:10,color:P.muted,fontFamily:"Lato, sans-serif"}}>{dn.kcal||""}</div><div style={{width:"100%",height:`${h}%`,minHeight:dn.kcal?4:0,background:kcalColor(dn.kcal),borderRadius:"4px 4px 0 0"}}/><div style={{fontSize:10,color:P.text,fontFamily:"Lato, sans-serif"}}>{d.slice(0,3)}</div></div>;})}
+        {meals.length>0&&<div style={{display:"flex",gap:5,flexWrap:"wrap"}}>{meals.map((m,i)=><span key={i} style={{background:MC[m.mt]?.bg||P.bg,borderRadius:8,padding:"2px 8px",fontSize:11,fontFamily:"Lato",color:P.text}}>{m.name}</span>)}</div>}
+      </div>;})}
+    </div>
+  </div>;
+}
+
+// ─── AUTH ─────────────────────────────────────────────────────────────────────
+function AuthScreen(){
+  const [mode,setMode]=useState("login");
+  const [email,setEmail]=useState("");
+  const [pw,setPw]=useState("");
+  const [pw2,setPw2]=useState("");
+  const [err,setErr]=useState("");
+  const [loading,setLoading]=useState(false);
+
+  const submit=async()=>{
+    setErr("");
+    if(!email||!pw){setErr("Fyll inn e-post og passord.");return;}
+    if(mode==="register"&&pw!==pw2){setErr("Passordene er ikke like.");return;}
+    if(mode==="register"&&pw.length<6){setErr("Passordet må være minst 6 tegn.");return;}
+    setLoading(true);
+    try{if(mode==="register")await createUserWithEmailAndPassword(auth,email,pw);else await signInWithEmailAndPassword(auth,email,pw);}
+    catch(e){const m={"auth/email-already-in-use":"E-posten er allerede i bruk.","auth/invalid-email":"Ugyldig e-postadresse.","auth/wrong-password":"Feil passord.","auth/user-not-found":"Ingen bruker med denne e-posten.","auth/invalid-credential":"Feil e-post eller passord."};setErr(m[e.code]||e.message);}
+    setLoading(false);
+  };
+
+  return <div style={{minHeight:"100vh",background:P.bg,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
+    <div style={{background:P.card,borderRadius:20,padding:32,width:"100%",maxWidth:400,boxShadow:"0 8px 40px rgba(0,0,0,0.1)"}}>
+      <div style={{textAlign:"center",marginBottom:28}}><div style={{fontSize:44,marginBottom:8}}>🥘</div><div style={{fontFamily:"Playfair Display",fontSize:24,color:P.text}}>Måltidsplanlegger</div><div style={{fontSize:12,color:P.muted,marginTop:4}}>{mode==="login"?"Logg inn":"Opprett konto"}</div></div>
+      <div style={{marginBottom:14}}><label style={lSt}>E-post</label><input style={iSt} type="email" placeholder="din@epost.no" value={email} onChange={e=>setEmail(e.target.value)} onKeyDown={e=>e.key==="Enter"&&submit()}/></div>
+      <div style={{marginBottom:14}}><label style={lSt}>Passord</label><input style={iSt} type="password" placeholder="Minst 6 tegn" value={pw} onChange={e=>setPw(e.target.value)} onKeyDown={e=>e.key==="Enter"&&submit()}/></div>
+      {mode==="register"&&<div style={{marginBottom:14}}><label style={lSt}>Gjenta passord</label><input style={iSt} type="password" placeholder="Skriv passordet én gang til" value={pw2} onChange={e=>setPw2(e.target.value)} onKeyDown={e=>e.key==="Enter"&&submit()}/></div>}
+      {err&&<div style={{background:"#FFCDD2",borderRadius:8,padding:"8px 12px",fontSize:12,color:"#b71c1c",fontFamily:"Lato",marginBottom:12}}>{err}</div>}
+      <button onClick={submit} disabled={loading} style={{width:"100%",background:P.greenDk,border:"none",borderRadius:12,padding:"11px 0",cursor:"pointer",fontFamily:"Lato",color:"#fff",fontWeight:700,fontSize:14,marginBottom:10,opacity:loading?0.7:1}}>{loading?"Laster…":mode==="login"?"Logg inn":"Opprett konto"}</button>
+      <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:10}}><div style={{flex:1,height:1,background:P.border}}/><span style={{fontSize:11,color:P.muted}}>eller</span><div style={{flex:1,height:1,background:P.border}}/></div>
+      <button onClick={async()=>{setErr("");setLoading(true);try{await signInWithPopup(auth,gProvider);}catch(e){setErr("Google-innlogging feilet.");}setLoading(false);}} style={{width:"100%",background:P.card,border:`1.5px solid ${P.border}`,borderRadius:12,padding:"10px 0",cursor:"pointer",fontFamily:"Lato",color:P.text,fontSize:13,display:"flex",alignItems:"center",justifyContent:"center",gap:8,marginBottom:18}}>
+        <svg width="18" height="18" viewBox="0 0 48 48"><path fill="#FFC107" d="M43.6 20H24v8h11.3C33.6 33.1 29.3 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3 0 5.8 1.1 7.9 3l5.7-5.7C34.1 6.5 29.3 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20c11 0 19.4-7.9 19.9-18H43.6v-6z"/><path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.5 15.1 18.9 12 24 12c3 0 5.8 1.1 7.9 3l5.7-5.7C34.1 6.5 29.3 4 24 4 16.3 4 9.7 8.4 6.3 14.7z"/><path fill="#4CAF50" d="M24 44c5.2 0 9.9-1.9 13.5-5l-6.2-5.2C29.5 35.6 26.9 36 24 36c-5.2 0-9.6-3-11.4-7.3l-6.5 5C9.6 39.6 16.3 44 24 44z"/><path fill="#1976D2" d="M43.6 20H24v8h11.3c-.9 2.5-2.6 4.7-4.8 6.2l6.2 5.2C40.9 36.1 44 30.5 44 24c0-1.4-.1-2.7-.4-4z"/></svg>
+        Fortsett med Google
+      </button>
+      <div style={{textAlign:"center",fontSize:12,color:P.muted,fontFamily:"Lato"}}>
+        {mode==="login"?<>Ingen konto? <span onClick={()=>{setMode("register");setErr("");}} style={{color:P.tealDk,cursor:"pointer",fontWeight:700}}>Opprett konto</span></>:<>Har du konto? <span onClick={()=>{setMode("login");setErr("");}} style={{color:P.tealDk,cursor:"pointer",fontWeight:700}}>Logg inn</span></>}
+      </div>
+    </div>
+  </div>;
+}
+
+// ─── PROFILE TAB ──────────────────────────────────────────────────────────────
+function ProfileTab({user,profile,setProfile,recipes,visibleNutr,setVisibleNutr}){
+  const [editing,setEditing]=useState(false);
+  const [gender,setGender]=useState(profile?.gender||"");
+  const [displayName,setDisplayName]=useState(user.displayName||"");
+  const [localAvatar,setLocalAvatar]=useState(profile?.avatarBase64||null);
+  const memberDate=profile?.createdAt?new Date(profile.createdAt).toLocaleDateString("nb-NO",{year:"numeric",month:"long",day:"numeric"}):"—";
+  const avatarRef=useRef();
+
+  const save=async()=>{
+    const updated={...profile,gender,displayName,avatarBase64:localAvatar};
+    await setDoc(doc(db,"users",user.uid),updated,{merge:true});
+    try{await updateProfile(user,{displayName});}catch{}
+    setProfile(updated);
+    setEditing(false);
+  };
+
+  const toggleNutr=async(key)=>{
+    const updated={...visibleNutr,[key]:!visibleNutr[key]};
+    setVisibleNutr(updated);
+    await setDoc(doc(db,"users",user.uid),{visibleNutr:updated},{merge:true});
+  };
+
+  const avatar = localAvatar || user.photoURL;
+
+  return <div style={{maxWidth:520}}>
+    <div style={{background:P.card,borderRadius:16,border:`1px solid ${P.border}`,padding:24,marginBottom:14}}>
+      <div style={{display:"flex",alignItems:"center",gap:14,marginBottom:20}}>
+        <div style={{position:"relative"}}>
+          <div style={{width:60,height:60,borderRadius:"50%",background:P.purple,overflow:"hidden",display:"flex",alignItems:"center",justifyContent:"center",fontSize:26,cursor:"pointer"}} onClick={()=>avatarRef.current?.click()}>
+            {avatar?<img src={avatar} style={{width:"100%",height:"100%",objectFit:"cover"}} alt=""/>:"👤"}
           </div>
+          <div style={{position:"absolute",bottom:-2,right:-2,background:P.tealDk,borderRadius:"50%",width:20,height:20,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",fontSize:11}} onClick={()=>avatarRef.current?.click()}>✎</div>
+          <input ref={avatarRef} type="file" accept="image/*" style={{display:"none"}} onChange={async e=>{if(e.target.files[0]){const b=await imgToBase64(e.target.files[0]);setLocalAvatar(b);}}}/>
         </div>
-        <div style={{background:P.card,borderRadius:14,border:`1px solid ${P.border}`,padding:16,marginBottom:14}}>
-          <div style={{fontFamily:"'Playfair Display', serif",fontSize:15,color:P.text,marginBottom:12}}>Totalt for uka</div>
-          <NutrBadges nutr={totals}/>
-          <div style={{marginTop:10,fontSize:11,color:P.muted,fontFamily:"Lato, sans-serif"}}>Snitt per dag: {Math.round(totals.kcal/7)} kcal · {Math.round(totals.protein/7*10)/10}g protein</div>
+        <div>
+          <div style={{fontFamily:"Playfair Display",fontSize:17,color:P.text}}>{user.displayName||profile?.displayName||user.email}</div>
+          <div style={{fontSize:12,color:P.muted,fontFamily:"Lato"}}>{user.email}</div>
         </div>
-        <div style={{background:P.card,borderRadius:14,border:`1px solid ${P.border}`,padding:16}}>
-          <div style={{fontFamily:"'Playfair Display', serif",fontSize:15,color:P.text,marginBottom:12}}>Dag for dag</div>
-          {DAYS.map(d=>{const dn=dayNutr(d);const meals=MEAL_TYPES.flatMap(mt=>getEntries(plan,d,mt).map(({rid})=>{const r=recipes.find(x=>x.id===rid);return r?{name:r.name,mt}:null;})).filter(Boolean);return <div key={d} style={{padding:"8px 0",borderBottom:`1px solid ${P.border}`}}>
-            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:meals.length?5:0}}>
-              <div style={{fontFamily:"Lato, sans-serif",fontSize:13,fontWeight:700,color:meals.length?P.text:P.muted}}>{d}</div>
-              {meals.length>0&&<div style={{display:"flex",gap:5}}><Badge label="Kcal" value={Math.round(dn.kcal)} unit="" color={P.yellow}/><Badge label="P" value={Math.round(dn.protein*10)/10} unit="g" color={P.green}/><Badge label="K" value={Math.round(dn.carbs*10)/10} unit="g" color={P.blue}/></div>}
-              {meals.length===0&&<div style={{fontSize:11,color:P.muted,fontFamily:"Lato, sans-serif"}}>Ingen måltider</div>}
+      </div>
+
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:16}}>
+        <div style={{background:P.bg,borderRadius:12,padding:"12px 14px"}}><div style={{fontSize:11,color:P.muted,fontFamily:"Lato"}}>Medlem siden</div><div style={{fontFamily:"Lato",fontSize:13,fontWeight:700,color:P.text,marginTop:3}}>{memberDate}</div></div>
+        <div style={{background:P.bg,borderRadius:12,padding:"12px 14px"}}><div style={{fontSize:11,color:P.muted,fontFamily:"Lato"}}>Antall oppskrifter</div><div style={{fontFamily:"Lato",fontSize:22,fontWeight:700,color:P.tealDk,marginTop:3}}>{recipes.length}</div></div>
+      </div>
+
+      {editing?<div>
+        <div style={{marginBottom:12}}><label style={lSt}>Kallenavn</label><input style={iSt} value={displayName} onChange={e=>setDisplayName(e.target.value)} placeholder="Ditt navn"/></div>
+        <div style={{marginBottom:12}}><label style={lSt}>Kjønn</label>
+          <select style={iSt} value={gender} onChange={e=>setGender(e.target.value)}><option value="">— Velg —</option>{GENDERS.map(g=><option key={g}>{g}</option>)}</select>
+        </div>
+        <div style={{display:"flex",gap:8,marginTop:12}}>
+          <button onClick={()=>setEditing(false)} style={{flex:1,background:P.border,border:"none",borderRadius:10,padding:"8px 0",cursor:"pointer",fontFamily:"Lato",color:P.text}}>Avbryt</button>
+          <button onClick={save} style={{flex:1,background:P.tealDk,border:"none",borderRadius:10,padding:"8px 0",cursor:"pointer",fontFamily:"Lato",color:"#fff",fontWeight:700}}>Lagre</button>
+        </div>
+      </div>:<div>
+        <div style={{fontSize:12,color:P.muted,fontFamily:"Lato",marginBottom:2}}>Kjønn</div>
+        <div style={{fontFamily:"Lato",fontSize:14,color:P.text,marginBottom:14}}>{profile?.gender||"Ikke oppgitt"}</div>
+        <button onClick={()=>setEditing(true)} style={{background:P.yellow,border:"none",borderRadius:10,padding:"7px 18px",cursor:"pointer",fontFamily:"Lato",color:P.text}}>Rediger profil</button>
+      </div>}
+    </div>
+
+    {/* Nutrition visibility settings */}
+    <div style={{background:P.card,borderRadius:16,border:`1px solid ${P.border}`,padding:20,marginBottom:14}}>
+      <div style={{fontFamily:"Playfair Display",fontSize:16,color:P.text,marginBottom:14}}>Næringsverdier — vis/skjul</div>
+      <div style={{display:"flex",flexDirection:"column",gap:8}}>
+        {ALL_NUTR.map(f=><label key={f.key} style={{display:"flex",alignItems:"center",justifyContent:"space-between",cursor:"pointer",padding:"6px 0",borderBottom:`1px solid ${P.border}`}}>
+          <div style={{display:"flex",alignItems:"center",gap:8}}>
+            <div style={{width:14,height:14,borderRadius:4,background:f.color,border:`1px solid ${P.border}`}}/>
+            <span style={{fontFamily:"Lato",fontSize:14,color:P.text}}>{f.label}</span>
+          </div>
+          <div style={{position:"relative",width:44,height:24}} onClick={()=>toggleNutr(f.key)}>
+            <div style={{position:"absolute",inset:0,borderRadius:12,background:visibleNutr[f.key]?P.greenDk:P.border,transition:"background 0.2s"}}/>
+            <div style={{position:"absolute",top:2,left:visibleNutr[f.key]?22:2,width:20,height:20,borderRadius:"50%",background:"#fff",boxShadow:"0 1px 4px rgba(0,0,0,0.2)",transition:"left 0.2s"}}/>
+          </div>
+        </label>)}
+      </div>
+    </div>
+
+    <button onClick={()=>signOut(auth)} style={{width:"100%",background:P.pink,border:"none",borderRadius:12,padding:"11px 0",cursor:"pointer",fontFamily:"Lato",color:P.text,fontWeight:700,fontSize:14}}>Logg ut</button>
+  </div>;
+}
+
+// ─── MAIN APP ─────────────────────────────────────────────────────────────────
+const DEFAULT_VISIBLE_NUTR = Object.fromEntries(ALL_NUTR.map(f=>[f.key,true]));
+
+function App(){
+  const [user,setUser]=useState(undefined);
+  const [profile,setProfile]=useState(null);
+  const [recipes,setRecipes]=useState([]);
+  const [weekPlan,setWeekPlan]=useState(emptyWeekPlan());
+  const [pantry,setPantry]=useState([]);
+  const [weekHistory,setWeekHistory]=useState({});
+  const [visibleNutr,setVisibleNutr]=useState(DEFAULT_VISIBLE_NUTR);
+  const [tab,setTab]=useState("recipes");
+  const [showForm,setShowForm]=useState(false);
+  const [editingRecipe,setEditingRecipe]=useState(null);
+  const [addToPlanTarget,setAddToPlanTarget]=useState(null);
+  const [filterMeal,setFilterMeal]=useState("Alle");
+  const [filterCat,setFilterCat]=useState("Alle");
+  const [filterSort,setFilterSort]=useState("Standard");
+  const [search,setSearch]=useState("");
+  const [showFavOnly,setShowFavOnly]=useState(false);
+
+  useEffect(()=>{
+    return onAuthStateChanged(auth,async u=>{
+      setUser(u||null);
+      if(u){
+        const snap=await getDoc(doc(db,"users",u.uid));
+        if(snap.exists()){
+          const d=snap.data();
+          setProfile(d);
+          if(d.visibleNutr) setVisibleNutr({...DEFAULT_VISIBLE_NUTR,...d.visibleNutr});
+        } else {
+          const p={email:u.email,createdAt:new Date().toISOString(),gender:""};
+          await setDoc(doc(db,"users",u.uid),p);
+          setProfile(p);
+        }
+      } else {setProfile(null);setRecipes([]);setPantry([]);setWeekPlan(emptyWeekPlan());setWeekHistory({});}
+    });
+  },[]);
+
+  useEffect(()=>{if(!user)return;return onSnapshot(query(collection(db,"users",user.uid,"recipes")),snap=>{setRecipes(snap.docs.map(d=>({...d.data(),id:d.id})));});},[user]);
+  useEffect(()=>{if(!user)return;return onSnapshot(query(collection(db,"users",user.uid,"pantry")),snap=>{setPantry(snap.docs.map(d=>({...d.data(),id:d.id})));});},[user]);
+
+  useEffect(()=>{
+    if(!user)return;
+    (async()=>{
+      const wp=await getDoc(doc(db,"users",user.uid,"data","weekplan"));
+      if(wp.exists())setWeekPlan(wp.data().plan||emptyWeekPlan());
+      const wh=await getDoc(doc(db,"users",user.uid,"data","weekhistory"));
+      if(wh.exists())setWeekHistory(wh.data().history||{});
+    })();
+  },[user]);
+
+  useEffect(()=>{
+    if(!user)return;
+    const t=setTimeout(async()=>{
+      await setDoc(doc(db,"users",user.uid,"data","weekplan"),{plan:weekPlan});
+      const key=getWeekKey(0);
+      const hasData=DAYS.some(d=>MEAL_TYPES.some(mt=>(weekPlan[d]?.[mt]||[]).length>0));
+      if(hasData){const h={...weekHistory,[key]:weekPlan};setWeekHistory(h);await setDoc(doc(db,"users",user.uid,"data","weekhistory"),{history:h});}
+    },1500);
+    return()=>clearTimeout(t);
+  },[weekPlan,user]);
+
+  const saveRecipe=async(r)=>{
+    if(editingRecipe) await updateDoc(doc(db,"users",user.uid,"recipes",r.id),r);
+    else await addDoc(collection(db,"users",user.uid,"recipes"),r);
+    setShowForm(false);setEditingRecipe(null);
+  };
+
+  const deleteRecipe=async(id)=>{
+    if(window.confirm("Slett denne oppskriften?"))await deleteDoc(doc(db,"users",user.uid,"recipes",id));
+  };
+
+  const toggleFavRecipe=async(recipe)=>{
+    const upd={...recipe,favorite:!recipe.favorite};
+    await updateDoc(doc(db,"users",user.uid,"recipes",recipe.id),{favorite:upd.favorite});
+  };
+
+  // Filter + sort
+  let filtered=recipes.filter(r=>{
+    if(filterMeal!=="Alle"&&r.mealType!==filterMeal)return false;
+    if(filterCat!=="Alle"&&r.category!==filterCat)return false;
+    if(filterSort==="Varmmat"&&r.tempType!=="Varmmat")return false;
+    if(filterSort==="Kaldmat"&&r.tempType!=="Kaldmat")return false;
+    if(showFavOnly&&!r.favorite)return false;
+    if(search&&!r.name.toLowerCase().includes(search.toLowerCase()))return false;
+    return true;
+  });
+  if(filterSort==="Høyest protein") filtered=[...filtered].sort((a,b)=>calcNutr(b.ingredients,b.servings).protein-calcNutr(a.ingredients,a.servings).protein);
+  if(filterSort==="Lavest kalorier") filtered=[...filtered].sort((a,b)=>calcNutr(a.ingredients,a.servings).kcal-calcNutr(b.ingredients,b.servings).kcal);
+
+  const TABS=[["recipes","📖 Oppskrifter"],["pantry","🫙 Spiskammer"],["plan","📅 Ukeplan"],["shopping","🛒 Handel"],["stats","📊 Statistikk"],["profile","👤 Profil"]];
+
+  if(user===undefined)return <div style={{minHeight:"100vh",background:P.bg,display:"flex",alignItems:"center",justifyContent:"center"}}><div style={{fontFamily:"Lato",color:P.muted,fontSize:16}}>Laster…</div></div>;
+  if(user===null)return <AuthScreen/>;
+
+  return <div style={{minHeight:"100vh",background:P.bg}}>
+    <div style={{background:P.card,borderBottom:`1px solid ${P.border}`,padding:"10px 14px",display:"flex",alignItems:"center",justifyContent:"space-between",position:"sticky",top:0,zIndex:50,gap:8}}>
+      <div style={{display:"flex",gap:7,alignItems:"center",flexShrink:0}}>
+        <span style={{fontSize:22}}>🥘</span>
+        <div>
+          <div style={{fontFamily:"Playfair Display",fontSize:16,color:P.text,lineHeight:1}}>Måltidsplanlegger</div>
+          <div style={{fontSize:9,color:P.muted}}>{profile?.displayName||user.displayName||user.email}</div>
+        </div>
+      </div>
+      <div style={{display:"flex",gap:3,flexWrap:"wrap",justifyContent:"flex-end"}}>
+        {TABS.map(([key,label])=><button key={key} onClick={()=>setTab(key)} style={{background:tab===key?P.purpleDk:"transparent",border:`1.5px solid ${tab===key?P.purpleDk:P.border}`,borderRadius:10,padding:"5px 9px",cursor:"pointer",fontFamily:"Lato",fontSize:11,color:tab===key?"#fff":P.text,whiteSpace:"nowrap"}}>{label}</button>)}
+      </div>
+    </div>
+
+    <div style={{maxWidth:1000,margin:"0 auto",padding:"16px 12px"}}>
+
+      {tab==="recipes"&&<>
+        {showForm||editingRecipe
+          ?<RecipeForm initial={editingRecipe} pantry={pantry} onSave={saveRecipe} onCancel={()=>{setShowForm(false);setEditingRecipe(null);}}/>
+          :<>
+            <div style={{display:"flex",gap:7,marginBottom:10,flexWrap:"wrap",alignItems:"center"}}>
+              <input style={{...iSt,flex:1,minWidth:110}} placeholder="🔍 Søk…" value={search} onChange={e=>setSearch(e.target.value)}/>
+              <select style={iSt} value={filterMeal} onChange={e=>setFilterMeal(e.target.value)}><option value="Alle">Alle måltider</option>{MEAL_TYPES.map(m=><option key={m}>{m}</option>)}</select>
+              <select style={iSt} value={filterCat} onChange={e=>setFilterCat(e.target.value)}><option value="Alle">Alle kategorier</option>{CATEGORIES.map(c=><option key={c}>{c}</option>)}</select>
+              <select style={iSt} value={filterSort} onChange={e=>setFilterSort(e.target.value)}>{SORT_OPTIONS.map(s=><option key={s}>{s}</option>)}</select>
+              <button onClick={()=>setShowFavOnly(x=>!x)} style={{background:showFavOnly?"#FFF9C4":P.card,border:`1.5px solid ${showFavOnly?"#F9A825":P.border}`,borderRadius:10,padding:"6px 10px",cursor:"pointer",fontFamily:"Lato",fontSize:12,color:P.text}}>⭐</button>
+              <button onClick={()=>{setShowForm(true);setEditingRecipe(null);}} style={{background:P.greenDk,border:"none",borderRadius:10,padding:"7px 12px",cursor:"pointer",fontFamily:"Lato",color:"#fff",fontWeight:700,fontSize:13,whiteSpace:"nowrap"}}>+ Ny</button>
             </div>
-            {meals.length>0&&<div style={{display:"flex",gap:5,flexWrap:"wrap"}}>{meals.map((m,i)=><span key={i} style={{background:MC[m.mt]?.bg||P.bg,borderRadius:8,padding:"2px 8px",fontSize:11,fontFamily:"Lato, sans-serif",color:P.text}}>{m.name}</span>)}</div>}
-          </div>;})}
-        </div>
-      </div>;
-    }
-
-    function App(){
-      const [user,setUser]=useState(undefined);
-      const [profile,setProfile]=useState(null);
-      const [recipes,setRecipes]=useState([]);
-      const [weekPlan,setWeekPlan]=useState(emptyWeekPlan());
-      const [pantry,setPantry]=useState([]);
-      const [weekHistory,setWeekHistory]=useState({});
-      const [tab,setTab]=useState("recipes");
-      const [showForm,setShowForm]=useState(false);
-      const [editingRecipe,setEditingRecipe]=useState(null);
-      const [addToPlanTarget,setAddToPlanTarget]=useState(null);
-      const [filterMeal,setFilterMeal]=useState("Alle");
-      const [filterCat,setFilterCat]=useState("Alle");
-      const [search,setSearch]=useState("");
-
-      useEffect(()=>{
-        return onAuthStateChanged(auth,async u=>{
-          setUser(u||null);
-          if(u){
-            const pSnap=await getDoc(doc(db,"users",u.uid));
-            if(pSnap.exists()){setProfile(pSnap.data());}
-            else{const p={email:u.email,createdAt:new Date().toISOString(),gender:""};await setDoc(doc(db,"users",u.uid),p);setProfile(p);}
-          }else{setProfile(null);setRecipes([]);setPantry([]);setWeekPlan(emptyWeekPlan());setWeekHistory({});}
-        });
-      },[]);
-
-      useEffect(()=>{if(!user)return;const q=query(collection(db,"users",user.uid,"recipes"));return onSnapshot(q,snap=>{setRecipes(snap.docs.map(d=>({...d.data(),id:d.id})));});},[user]);
-      useEffect(()=>{if(!user)return;const q=query(collection(db,"users",user.uid,"pantry"));return onSnapshot(q,snap=>{setPantry(snap.docs.map(d=>({...d.data(),id:d.id})));});},[user]);
-
-      useEffect(()=>{
-        if(!user)return;
-        (async()=>{
-          const wpSnap=await getDoc(doc(db,"users",user.uid,"data","weekplan"));
-          if(wpSnap.exists())setWeekPlan(wpSnap.data().plan||emptyWeekPlan());
-          const whSnap=await getDoc(doc(db,"users",user.uid,"data","weekhistory"));
-          if(whSnap.exists())setWeekHistory(whSnap.data().history||{});
-        })();
-      },[user]);
-
-      useEffect(()=>{
-        if(!user)return;
-        const t=setTimeout(async()=>{
-          await setDoc(doc(db,"users",user.uid,"data","weekplan"),{plan:weekPlan});
-          const key=getWeekKey(0);
-          const hasData=DAYS.some(d=>MEAL_TYPES.some(mt=>(weekPlan[d]?.[mt]||[]).length>0));
-          if(hasData){const newH={...weekHistory,[key]:weekPlan};setWeekHistory(newH);await setDoc(doc(db,"users",user.uid,"data","weekhistory"),{history:newH});}
-        },1500);
-        return()=>clearTimeout(t);
-      },[weekPlan,user]);
-
-      const saveRecipe=async(r)=>{
-        if(editingRecipe){await updateDoc(doc(db,"users",user.uid,"recipes",r.id),r);}
-        else{await addDoc(collection(db,"users",user.uid,"recipes"),r);}
-        setShowForm(false);setEditingRecipe(null);
-      };
-
-      const deleteRecipe=async(id)=>{
-        if(window.confirm("Slett denne oppskriften?"))await deleteDoc(doc(db,"users",user.uid,"recipes",id));
-      };
-
-      const filtered=recipes.filter(r=>{
-        if(filterMeal!=="Alle"&&r.mealType!==filterMeal)return false;
-        if(filterCat!=="Alle"&&r.category!==filterCat)return false;
-        if(search&&!r.name.toLowerCase().includes(search.toLowerCase()))return false;
-        return true;
-      });
-
-      const TABS=[["recipes","📖 Oppskrifter"],["pantry","🫙 Spiskammer"],["plan","📅 Ukeplan"],["shopping","🛒 Handel"],["stats","📊 Statistikk"],["profile","👤 Profil"]];
-
-      if(user===undefined)return <div style={{minHeight:"100vh",background:P.bg,display:"flex",alignItems:"center",justifyContent:"center"}}><div style={{fontFamily:"Lato, sans-serif",color:P.muted,fontSize:16}}>Laster…</div></div>;
-      if(user===null)return <AuthScreen/>;
-
-      return <div style={{minHeight:"100vh",background:P.bg}}>
-        <div style={{background:P.card,borderBottom:`1px solid ${P.border}`,padding:"10px 14px",display:"flex",alignItems:"center",justifyContent:"space-between",position:"sticky",top:0,zIndex:50,gap:8}}>
-          <div style={{display:"flex",gap:7,alignItems:"center",flexShrink:0}}><span style={{fontSize:22}}>🥘</span><div><div style={{fontFamily:"'Playfair Display', serif",fontSize:16,color:P.text,lineHeight:1}}>Måltidsplanlegger</div><div style={{fontSize:9,color:P.muted}}>{user.email}</div></div></div>
-          <div style={{display:"flex",gap:3,flexWrap:"wrap",justifyContent:"flex-end"}}>
-            {TABS.map(([key,label])=><button key={key} onClick={()=>setTab(key)} style={{background:tab===key?P.purpleDk:"transparent",border:`1.5px solid ${tab===key?P.purpleDk:P.border}`,borderRadius:10,padding:"5px 9px",cursor:"pointer",fontFamily:"Lato, sans-serif",fontSize:11,color:tab===key?"#fff":P.text,whiteSpace:"nowrap"}}>{label}</button>)}
-          </div>
-        </div>
-        <div style={{maxWidth:1000,margin:"0 auto",padding:"16px 12px"}}>
-          {tab==="recipes"&&<>
-            {showForm||editingRecipe?<RecipeForm initial={editingRecipe} pantry={pantry} onSave={saveRecipe} onCancel={()=>{setShowForm(false);setEditingRecipe(null);}}/>:<>
-              <div style={{display:"flex",gap:7,marginBottom:14,flexWrap:"wrap",alignItems:"center"}}>
-                <input style={{...iSt,flex:1,minWidth:120}} placeholder="🔍 Søk…" value={search} onChange={e=>setSearch(e.target.value)}/>
-                <select style={iSt} value={filterMeal} onChange={e=>setFilterMeal(e.target.value)}><option value="Alle">Alle måltider</option>{MEAL_TYPES.map(m=><option key={m}>{m}</option>)}</select>
-                <select style={iSt} value={filterCat} onChange={e=>setFilterCat(e.target.value)}><option value="Alle">Alle kategorier</option>{CATEGORIES.map(c=><option key={c}>{c}</option>)}</select>
-                <button onClick={()=>{setShowForm(true);setEditingRecipe(null);}} style={{background:P.greenDk,border:"none",borderRadius:10,padding:"7px 14px",cursor:"pointer",fontFamily:"Lato, sans-serif",color:"#fff",fontWeight:700,fontSize:13,whiteSpace:"nowrap"}}>+ Ny oppskrift</button>
-              </div>
-              {filtered.length===0&&<div style={{textAlign:"center",padding:"55px 0",color:P.muted}}><div style={{fontSize:42,marginBottom:10}}>🍳</div><div style={{fontFamily:"'Playfair Display', serif",fontSize:16}}>Ingen oppskrifter ennå</div></div>}
-              <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(275px,1fr))",gap:12}}>
-                {filtered.map(r=><RecipeCard key={r.id} recipe={r} pantry={pantry} onEdit={r=>{setEditingRecipe(r);setShowForm(true);}} onDelete={deleteRecipe} onAddToPlan={r=>{setAddToPlanTarget(r);setTab("plan");}}/>)}
-              </div>
-            </>}
+            {filtered.length===0&&<div style={{textAlign:"center",padding:"55px 0",color:P.muted}}><div style={{fontSize:42,marginBottom:10}}>🍳</div><div style={{fontFamily:"Playfair Display",fontSize:16}}>Ingen oppskrifter</div></div>}
+            <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(270px,1fr))",gap:12}}>
+              {filtered.map(r=><RecipeCard key={r.id} recipe={r} pantry={pantry} visibleNutr={visibleNutr}
+                onEdit={r=>{setEditingRecipe(r);setShowForm(true);}}
+                onDelete={deleteRecipe}
+                onAddToPlan={r=>{setAddToPlanTarget(r);setTab("plan");}}
+                onToggleFav={toggleFavRecipe}/>)}
+            </div>
           </>}
-          {tab==="pantry"&&<PantryTab uid={user.uid} pantry={pantry} setPantry={setPantry}/>}
-          {tab==="plan"&&<WeekPlan recipes={recipes} weekPlan={weekPlan} setWeekPlan={setWeekPlan} addToPlanTarget={addToPlanTarget} setAddToPlanTarget={setAddToPlanTarget}/>}
-          {tab==="shopping"&&<ShoppingList recipes={recipes} weekPlan={weekPlan} pantry={pantry}/>}
-          {tab==="stats"&&<StatsTab recipes={recipes} weekPlan={weekPlan} weekHistory={weekHistory}/>}
-          {tab==="profile"&&<ProfileTab user={user} profile={profile} setProfile={setProfile} recipes={recipes}/>}
-        </div>
-      </div>;
-    }
+      </>}
 
-    const root = ReactDOM.createRoot(document.getElementById('root'));
-    root.render(<App/>);
-  </script>
+      {tab==="pantry"&&<PantryTab uid={user.uid} pantry={pantry} setPantry={setPantry} visibleNutr={visibleNutr}/>}
+      {tab==="plan"&&<WeekPlan recipes={recipes} weekPlan={weekPlan} setWeekPlan={setWeekPlan} addToPlanTarget={addToPlanTarget} setAddToPlanTarget={setAddToPlanTarget} visibleNutr={visibleNutr}/>}
+      {tab==="shopping"&&<ShoppingList recipes={recipes} weekPlan={weekPlan} pantry={pantry}/>}
+      {tab==="stats"&&<StatsTab recipes={recipes} weekPlan={weekPlan} weekHistory={weekHistory} visibleNutr={visibleNutr}/>}
+      {tab==="profile"&&<ProfileTab user={user} profile={profile} setProfile={setProfile} recipes={recipes} visibleNutr={visibleNutr} setVisibleNutr={setVisibleNutr}/>}
+    </div>
+  </div>;
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
+</script>
 
 </body>
 </html>
