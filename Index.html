@@ -72,7 +72,21 @@ const ALL_NUTR = [
 const iSt = { border:"1.5px solid #E8E0D0",borderRadius:8,padding:"6px 10px",background:"#FFFDF8",color:"#4A4035",fontFamily:"Lato, sans-serif",fontSize:13,outline:"none",width:"100%",boxSizing:"border-box" };
 const lSt = { fontSize:11,color:"#9E8E78",fontFamily:"Lato, sans-serif",marginBottom:3,display:"block" };
 
-const PANTRY_CATEGORIES = ["Meieri","Kjøtt & fisk","Grønnsaker & frukt","Tørrvarer","Krydder & saus","Brød & bakevarer","Drikke","Frysevarer","Hermetikk","Snacks & godteri","Annet"];
+const PANTRY_CATEGORIES = [
+  "Meieri & egg",
+  "Kjøtt & kylling",
+  "Fisk & skalldyr",
+  "Frukt & grønt",
+  "Pålegg & frokost",
+  "Tørrvarer",
+  "Bakevarer & kjeks",
+  "Søtt & godteri",
+  "Krydder & saus",
+  "Drikke",
+  "Frysevarer",
+  "Hermetikk",
+  "Annet"
+];
 
 const emptyWeekPlan = () => Object.fromEntries(DAYS.map(d=>[d,Object.fromEntries(MEAL_TYPES.map(m=>[m,[]]))]));
 const emptyIng = () => ({name:"",amount:"",unit:"",kcal:"",protein:"",fat:"",saturated:"",carbs:"",sugar:"",fiber:"",salt:"",pantryId:null});
