@@ -448,7 +448,7 @@ function PantryTab({uid,pantry,setPantry,visibleNutr}){
   </div>;
 }
 
-const PORTION_TYPES = ["stk","pk","skive","bit","ts","ss","flaske","neve","klype","dl","ml","bukett","fedd"];
+const PORTION_TYPES = ["stk","pk","skive","bit","ts","ss","flaske","neve","klype","dl","ml","bukett","fedd","spray","porsjon"];
 
 // Isolated so parent re-renders don't cause jumping
 function ServingsField({initial,onCommit}){
@@ -559,7 +559,7 @@ function RecipeForm({initial,pantry,onSave,onCancel}){
       <div style={{display:"flex",gap:4,marginBottom:4,minWidth:0}}>
         <div style={{flex:"0 0 180px",fontSize:10,color:P.muted,fontFamily:"Lato"}}>Ingrediens</div>
         <div style={{overflowX:"auto",flex:1,display:"flex",gap:4}}>
-          {["Mengde","Enhet","Kcal","Fett","M.fett","Karbo","Sukker","Prot","Salt","Fiber",""].map((h,i)=>(
+          {["Mengde","Enhet","Kcal","Fett","M.fett","Karbo","Sukker","Protein","Salt","Fiber",""].map((h,i)=>(
             <div key={i} style={{flex:"0 0 68px",fontSize:10,color:P.muted,fontFamily:"Lato"}}>{h}</div>
           ))}
         </div>
