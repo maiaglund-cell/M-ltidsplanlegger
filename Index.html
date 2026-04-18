@@ -91,7 +91,7 @@ const PANTRY_CATEGORIES = [
 
 const emptyWeekPlan = () => Object.fromEntries(DAYS.map(d=>[d,Object.fromEntries(MEAL_TYPES.map(m=>[m,[]]))]));
 const emptyIng = () => ({name:"",amount:"",unit:"",kcal:"",protein:"",fat:"",saturated:"",carbs:"",sugar:"",fiber:"",salt:"",pantryId:null});
-const emptyRecipe = () => ({name:"",category:"Kaloriunderskudd",mealType:"Middag",tempType:"Varmmat",servings:1,ingredients:[emptyIng()],steps:[""],image:null,canFreeze:false,fridgeDays:"",freezeDays:"",needsCold:false,favorite:false});
+const emptyRecipe = () => ({name:"",category:"Kaloriunderskudd",mealType:"Middag",tempType:"Varmmat",servings:1,ingredients:[emptyIng()],steps:[""],notes:"",image:null,canFreeze:false,fridgeDays:"",freezeDays:"",needsCold:false,favorite:false});
 const emptyPantry = () => ({brandName:"",genericTag:"",unit:"g",pantryCategory:"Annet",kcalPer100:"",proteinPer100:"",fatPer100:"",saturatedPer100:"",carbsPer100:"",sugarPer100:"",fiberPer100:"",saltPer100:"",allergens:[],notes:"",image:null,favorite:false,portionUnits:[]});
 // portionUnits: [{label:"1 stk", grams:"150"}, {label:"1 pk", grams:"500"}, {label:"1 ts", grams:"5"}]
 
@@ -615,6 +615,12 @@ function RecipeForm({initial,pantry,onSave,onCancel}){
       </div>)}
     </div>
 
+    {/* Notes / comment */}
+    <div style={{marginBottom:18}}>
+      <h4 style={{margin:"0 0 8px",fontFamily:"Playfair Display",color:P.text}}>Kommentar / tips</h4>
+      <textarea style={{...iSt,resize:"vertical",minHeight:60}} value={r.notes||""} placeholder="F.eks: frys ned uten spinat, server med brød, doble mengden hvitløk…" onChange={e=>setF("notes",e.target.value)}/>
+    </div>
+
     <div style={{display:"flex",gap:10,justifyContent:"flex-end"}}>
       <button onClick={onCancel} style={{background:P.border,border:"none",borderRadius:10,padding:"7px 18px",cursor:"pointer",fontFamily:"Lato",color:P.text}}>Avbryt</button>
       <button onClick={handleSave} style={{background:P.greenDk,border:"none",borderRadius:10,padding:"7px 22px",cursor:"pointer",fontFamily:"Lato",color:"#fff",fontWeight:700}}>Lagre</button>
@@ -658,8 +664,20 @@ function RecipeDetail({recipe,pantry,visibleNutr,onClose,onEdit,onDelete,onAddTo
         {allergens.length>0&&<div style={{display:"flex",flexWrap:"wrap",gap:4,marginBottom:12}}>{allergens.map(a=><span key={a} style={{background:"#FFCDD2",border:"1px solid #EF9A9A",borderRadius:20,padding:"2px 9px",fontSize:11,color:"#b71c1c",fontFamily:"Lato"}}>⚠ {a}</span>)}</div>}
         {hasLinked&&<div style={{marginBottom:10}}><button onClick={()=>setBrand(b=>!b)} style={{background:brand?P.teal:P.peach,border:"none",borderRadius:20,padding:"3px 12px",cursor:"pointer",fontFamily:"Lato",fontSize:11,color:P.text}}>{brand?"🏷️ Merkenavn":"🥛 Generisk"}</button></div>}
 
-        <div style={{marginBottom:14}}><div style={{fontFamily:"Playfair Display",fontSize:15,color:P.text,marginBottom:6}}>Ingredienser</div><ul style={{margin:0,paddingLeft:18,fontFamily:"Lato",fontSize:13,color:P.text}}>{recipe.ingredients.filter(i=>i.name.trim()).map((ing,i)=><li key={i} style={{marginBottom:3}}>{ing.amount} {ing.unit} {dispName(ing)}</li>)}</ul></div>
+        <div style={{marginBottom:14}}>
+          <div style={{fontFamily:"Playfair Display",fontSize:15,color:P.text,marginBottom:8}}>Ingredienser</div>
+          <div style={{fontFamily:"Lato",fontSize:13,color:P.text}}>
+            {recipe.ingredients.filter(i=>i.name.trim()).map((ing,i)=>(
+              <div key={i} style={{display:"flex",gap:12,paddingBottom:5,marginBottom:5,borderBottom:`1px solid ${P.border}`}}>
+                <span style={{fontWeight:700,color:P.text,minWidth:70,flexShrink:0}}>{ing.amount} {ing.selectedUnit||ing.unit}</span>
+                <span>{dispName(ing)}</span>
+              </div>
+            ))}
+          </div>
+        </div>
         {recipe.steps.filter(s=>s.trim()).length>0&&<div style={{marginBottom:16}}><div style={{fontFamily:"Playfair Display",fontSize:15,color:P.text,marginBottom:6}}>Fremgangsmåte</div><ol style={{margin:0,paddingLeft:18,fontFamily:"Lato",fontSize:13,color:P.text}}>{recipe.steps.filter(s=>s.trim()).map((s,i)=><li key={i} style={{marginBottom:6,lineHeight:1.5}}>{s}</li>)}</ol></div>}
+        {recipe.notes&&recipe.notes.trim()&&<div style={{background:P.yellow,borderRadius:10,padding:"10px 14px",marginBottom:14}}><div style={{fontSize:11,color:P.muted,fontFamily:"Lato",marginBottom:3}}>💡 Tips</div><div style={{fontFamily:"Lato",fontSize:13,color:P.text,lineHeight:1.5}}>{recipe.notes}</div></div>}
+        {recipe.authorName&&<div style={{fontSize:11,color:P.muted,fontFamily:"Lato",marginBottom:12}}>Delt av {recipe.authorName}</div>}
 
         <div style={{display:"flex",gap:7,paddingTop:8,borderTop:`1px solid ${P.border}`}}>
           <button onClick={()=>{onAddToPlan(recipe);onClose();}} style={{flex:1,background:P.blue,border:"none",borderRadius:10,padding:"8px 0",cursor:"pointer",fontSize:12,fontFamily:"Lato",color:P.text}}>+ Legg i plan</button>
@@ -1012,8 +1030,10 @@ function App(){
   },[weekPlan,user]);
 
   const saveRecipe=async(r)=>{
-    if(editingRecipe) await updateDoc(doc(db,"users",user.uid,"recipes",r.id),r);
-    else await addDoc(collection(db,"users",user.uid,"recipes"),r);
+    const name=profile?.displayName||user.displayName||user.email||"";
+    const data={...r,authorName:r.authorName||name};
+    if(editingRecipe) await updateDoc(doc(db,"users",user.uid,"recipes",r.id),data);
+    else await addDoc(collection(db,"users",user.uid,"recipes"),data);
     setShowForm(false);setEditingRecipe(null);
   };
 
