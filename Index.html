@@ -61,13 +61,13 @@ const P = { bg:"#F5F0E8",card:"#FFFDF8",green:"#C8E6C9",greenDk:"#81C784",pink:"
 
 const ALL_NUTR = [
   {key:"kcal",      label:"Kcal",         unit:"",  color:"#FFF9C4"},
-  {key:"protein",   label:"Protein",      unit:"g", color:"#C8E6C9"},
   {key:"fat",       label:"Fett",         unit:"g", color:"#FFCCBC"},
   {key:"saturated", label:"Mettet fett",  unit:"g", color:"#FFE0B2"},
   {key:"carbs",     label:"Karbohydrater",unit:"g", color:"#BBDEFB"},
   {key:"sugar",     label:"Sukkerarter",  unit:"g", color:"#F8BBD0"},
-  {key:"fiber",     label:"Fiber",        unit:"g", color:"#DCEDC8"},
+  {key:"protein",   label:"Protein",      unit:"g", color:"#C8E6C9"},
   {key:"salt",      label:"Salt",         unit:"g", color:"#E0E0E0"},
+  {key:"fiber",     label:"Fiber",        unit:"g", color:"#DCEDC8"},
 ];
 
 const iSt = { border:"1.5px solid #E8E0D0",borderRadius:8,padding:"6px 10px",background:"#FFFDF8",color:"#4A4035",fontFamily:"Lato, sans-serif",fontSize:13,outline:"none",width:"100%",boxSizing:"border-box" };
@@ -126,7 +126,7 @@ function Badge({label,value,unit,color}){
 }
 function NutrBadges({nutr,visibleNutr,compact=false}){
   const fields = compact
-    ? ALL_NUTR.filter(f=>["kcal","protein","fat","carbs","fiber"].includes(f.key))
+    ? ALL_NUTR.filter(f=>["kcal","fat","carbs","protein","salt"].includes(f.key))
     : ALL_NUTR;
   return <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
     {fields.map(f=>{
@@ -307,7 +307,7 @@ function PantryForm({initial,onSave,onCancel}){
       <div style={{marginBottom:14}}>
         <div style={{fontSize:11,color:P.muted,fontFamily:"Lato",marginBottom:6}}>Næringsverdier per 100 {it.unit||"g"}</div>
         <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:8}}>
-          {[["Kcal","kcalPer100"],["Protein g","proteinPer100"],["Fett g","fatPer100"],["Mettet fett g","saturatedPer100"],["Karbohydrater g","carbsPer100"],["Sukkerarter g","sugarPer100"],["Fiber g","fiberPer100"],["Salt g","saltPer100"]].map(([l,k])=><div key={k}><label style={lSt}>{l}</label><input style={iSt} type="number" placeholder="—" value={it[k]} onChange={e=>setF(k,e.target.value)}/></div>)}
+          {[["Kcal","kcalPer100"],["Fett g","fatPer100"],["Mettet fett g","saturatedPer100"],["Karbohydrater g","carbsPer100"],["Sukkerarter g","sugarPer100"],["Protein g","proteinPer100"],["Salt g","saltPer100"],["Fiber g","fiberPer100"]].map(([l,k])=><div key={k}><label style={lSt}>{l}</label><input style={iSt} type="number" placeholder="—" value={it[k]} onChange={e=>setF(k,e.target.value)}/></div>)}
         </div>
       </div>
 
@@ -559,7 +559,7 @@ function RecipeForm({initial,pantry,onSave,onCancel}){
       <div style={{display:"flex",gap:4,marginBottom:4,minWidth:0}}>
         <div style={{flex:"0 0 180px",fontSize:10,color:P.muted,fontFamily:"Lato"}}>Ingrediens</div>
         <div style={{overflowX:"auto",flex:1,display:"flex",gap:4}}>
-          {["Mengde","Enhet","Kcal","Prot","Fett","M.fett","Karbo","Sukker","Fiber","Salt",""].map((h,i)=>(
+          {["Mengde","Enhet","Kcal","Fett","M.fett","Karbo","Sukker","Prot","Salt","Fiber",""].map((h,i)=>(
             <div key={i} style={{flex:"0 0 68px",fontSize:10,color:P.muted,fontFamily:"Lato"}}>{h}</div>
           ))}
         </div>
@@ -589,7 +589,7 @@ function RecipeForm({initial,pantry,onSave,onCancel}){
                 }
                 return <input style={{...iSt,flex:"0 0 68px"}} placeholder="g" value={ing.unit} onChange={e=>setIng(idx,"unit",e.target.value)}/>;
               })()}
-              {["kcal","protein","fat","saturated","carbs","sugar","fiber","salt"].map(k=>(
+              {["kcal","fat","saturated","carbs","sugar","protein","salt","fiber"].map(k=>(
                 <input key={k} style={{...iSt,flex:"0 0 68px",background:linked?"#EEF8EE":P.card}} type="number" placeholder="—" value={ing[k]} onChange={e=>setIng(idx,k,e.target.value)}/>
               ))}
               <button onClick={()=>setF("ingredients",r.ingredients.filter((_,j)=>j!==idx))} style={{flex:"0 0 28px",background:P.pink,border:"none",borderRadius:6,cursor:"pointer",fontSize:13}}>×</button>
