@@ -512,7 +512,21 @@ function RecipeForm({initial,pantry,onSave,onCancel}){
         <input style={{...iSt,border:`1.5px solid ${saveErr?"#ef5350":P.border}`}} value={r.name} onChange={e=>{setF("name",e.target.value);setSaveErr(false);}} placeholder="F.eks. Kyllingsuppe"/>
         {saveErr&&<div style={{fontSize:11,color:"#ef5350",fontFamily:"Lato",marginTop:3}}>Skriv inn navn på oppskriften</div>}
       </div>
-      <div><label style={lSt}>Måltidstype</label><select style={iSt} value={r.mealType} onChange={e=>setF("mealType",e.target.value)}>{MEAL_TYPES.map(m=><option key={m}>{m}</option>)}</select></div>
+      <div style={{gridColumn:"1/-1"}}>
+        <label style={lSt}>Måltidstype (velg én eller flere)</label>
+        <div style={{display:"flex",gap:6,flexWrap:"wrap",marginTop:2}}>
+          {MEAL_TYPES.map(m=>{
+            const sel=(r.mealTypes||[r.mealType]).includes(m);
+            return <button key={m} type="button" onClick={()=>{
+              const cur=r.mealTypes||(r.mealType?[r.mealType]:[]);
+              const next=sel?cur.filter(x=>x!==m):[...cur,m];
+              setF("mealTypes",next.length?next:cur);
+            }} style={{background:sel?MC[m]?.bg||P.purple:P.bg,border:`1.5px solid ${sel?MC[m]?.border||P.purpleDk:P.border}`,borderRadius:20,padding:"5px 13px",cursor:"pointer",fontFamily:"Lato",fontSize:12,color:P.text,fontWeight:sel?700:400}}>
+              {MC[m]?.icon} {m}
+            </button>;
+          })}
+        </div>
+      </div>
       <div><label style={lSt}>Kategori</label><select style={iSt} value={r.category} onChange={e=>setF("category",e.target.value)}>{CATEGORIES.map(c=><option key={c}>{c}</option>)}</select></div>
       <div><label style={lSt}>Varm / kald</label><select style={iSt} value={r.tempType||"Varmmat"} onChange={e=>setF("tempType",e.target.value)}>{TEMP_TYPES.map(t=><option key={t}>{t}</option>)}</select></div>
       <ServingsField initial={r.servings} onCommit={v=>setF("servings",v)}/>
@@ -609,8 +623,12 @@ function RecipeForm({initial,pantry,onSave,onCancel}){
     <div style={{marginBottom:18}}>
       <div style={{display:"flex",justifyContent:"space-between",marginBottom:8}}><h4 style={{margin:0,fontFamily:"Playfair Display",color:P.text}}>Fremgangsmåte</h4><button onClick={()=>setF("steps",[...r.steps,""])} style={{background:P.blue,border:"none",borderRadius:8,padding:"4px 12px",cursor:"pointer",fontFamily:"Lato",color:P.text,fontSize:12}}>+ Steg</button></div>
       {r.steps.map((s,i)=><div key={i} style={{display:"flex",gap:7,marginBottom:5,alignItems:"flex-start"}}>
-        <div style={{minWidth:20,height:20,borderRadius:"50%",background:P.purple,display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,fontWeight:700,color:P.text,marginTop:8}}>{i+1}</div>
-        <textarea style={{...iSt,resize:"vertical",minHeight:34}} value={s} placeholder={`Steg ${i+1}…`} onChange={e=>{const a=[...r.steps];a[i]=e.target.value;setF("steps",a);}}/>
+        <div style={{display:"flex",flexDirection:"column",gap:2,marginTop:6,flexShrink:0}}>
+          <button onClick={()=>{if(i===0)return;const a=[...r.steps];[a[i-1],a[i]]=[a[i],a[i-1]];setF("steps",a);}} disabled={i===0} style={{background:i===0?"#eee":P.purple,border:"none",borderRadius:4,width:20,height:18,cursor:i===0?"default":"pointer",fontSize:10,color:i===0?P.muted:"#fff",display:"flex",alignItems:"center",justifyContent:"center"}}>▲</button>
+          <button onClick={()=>{if(i===r.steps.length-1)return;const a=[...r.steps];[a[i+1],a[i]]=[a[i],a[i+1]];setF("steps",a);}} disabled={i===r.steps.length-1} style={{background:i===r.steps.length-1?"#eee":P.purple,border:"none",borderRadius:4,width:20,height:18,cursor:i===r.steps.length-1?"default":"pointer",fontSize:10,color:i===r.steps.length-1?P.muted:"#fff",display:"flex",alignItems:"center",justifyContent:"center"}}>▼</button>
+        </div>
+        <div style={{minWidth:20,height:20,borderRadius:"50%",background:P.purple,display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,fontWeight:700,color:"#fff",marginTop:8,flexShrink:0}}>{i+1}</div>
+        <textarea style={{...iSt,resize:"vertical",minHeight:34,flex:1}} value={s} placeholder={`Steg ${i+1}…`} onChange={e=>{const a=[...r.steps];a[i]=e.target.value;setF("steps",a);}}/>
         <button onClick={()=>setF("steps",r.steps.filter((_,j)=>j!==i))} style={{background:P.pink,border:"none",borderRadius:6,cursor:"pointer",fontSize:12,padding:"4px 7px",marginTop:4}}>×</button>
       </div>)}
     </div>
@@ -632,7 +650,7 @@ function RecipeForm({initial,pantry,onSave,onCancel}){
 function RecipeDetail({recipe,pantry,visibleNutr,onClose,onEdit,onDelete,onAddToPlan}){
   const [brand,setBrand]=useState(true);
   const nutr=calcNutr(recipe.ingredients,recipe.servings);
-  const mc=MC[recipe.mealType]||MC["Middag"];
+  const mc=MC[(recipe.mealTypes||[recipe.mealType])[0]]||MC["Middag"];
   const hasLinked=recipe.ingredients.some(i=>i.pantryId);
   const dispName=ing=>{if(!ing.pantryId)return ing.name;const p=pantry.find(x=>x.id===ing.pantryId);if(!p)return ing.name;return brand?p.brandName:(p.genericTag||p.brandName);};
   const allergens=[...new Set(recipe.ingredients.flatMap(ing=>{if(!ing.pantryId)return[];const p=pantry.find(x=>x.id===ing.pantryId);return p?.allergens||[];}))];
@@ -645,7 +663,7 @@ function RecipeDetail({recipe,pantry,visibleNutr,onClose,onEdit,onDelete,onAddTo
           <span style={{fontSize:20}}>{mc.icon}</span>
           <div>
             <div style={{fontFamily:"Playfair Display",fontSize:17,fontWeight:700,color:P.text}}>{recipe.name}</div>
-            <div style={{fontSize:11,color:P.muted,fontFamily:"Lato"}}>{recipe.mealType} · {recipe.servings} porsjon{recipe.servings>1?"er":""} · {recipe.tempType||"Varmmat"}</div>
+            <div style={{fontSize:11,color:P.muted,fontFamily:"Lato"}}>{(recipe.mealTypes||[recipe.mealType]).filter(Boolean).join(', ')} · {recipe.servings} porsjon{recipe.servings>1?"er":""} · {recipe.tempType||"Varmmat"}</div>
           </div>
         </div>
         <button onClick={onClose} style={{background:"rgba(0,0,0,0.1)",border:"none",borderRadius:8,padding:"4px 10px",cursor:"pointer",fontSize:16,color:P.text}}>✕</button>
@@ -693,7 +711,7 @@ function RecipeDetail({recipe,pantry,visibleNutr,onClose,onEdit,onDelete,onAddTo
 function RecipeCard({recipe,pantry,visibleNutr,onEdit,onDelete,onAddToPlan,onToggleFav}){
   const [showDetail,setShowDetail]=useState(false);
   const nutr=calcNutr(recipe.ingredients,recipe.servings);
-  const mc=MC[recipe.mealType]||MC["Middag"];
+  const mc=MC[(recipe.mealTypes||[recipe.mealType])[0]]||MC["Middag"];
   const allergens=[...new Set(recipe.ingredients.flatMap(ing=>{if(!ing.pantryId)return[];const p=pantry.find(x=>x.id===ing.pantryId);return p?.allergens||[];}))];
 
   return <>
@@ -705,7 +723,7 @@ function RecipeCard({recipe,pantry,visibleNutr,onEdit,onDelete,onAddToPlan,onTog
           <div style={{fontFamily:"Playfair Display",fontSize:14,fontWeight:600,color:P.text,lineHeight:1.2,flex:1}}>{recipe.name}</div>
           <button onClick={e=>{e.stopPropagation();onToggleFav(recipe);}} style={{background:"none",border:"none",cursor:"pointer",fontSize:16,lineHeight:1,flexShrink:0}}>{recipe.favorite?"⭐":"☆"}</button>
         </div>
-        <div style={{fontSize:10,color:P.muted,fontFamily:"Lato",marginBottom:6}}>{recipe.mealType} · {recipe.tempType||""} · {recipe.servings} porsjon{recipe.servings>1?"er":""}</div>
+        <div style={{fontSize:10,color:P.muted,fontFamily:"Lato",marginBottom:6}}>{(recipe.mealTypes||[recipe.mealType]).filter(Boolean).join(', ')} · {recipe.tempType||""} · {recipe.servings} porsjon{recipe.servings>1?"er":""}</div>
 
         {/* Storage chips */}
         {(recipe.fridgeDays||recipe.canFreeze||recipe.needsCold)&&<div style={{display:"flex",gap:4,flexWrap:"wrap",marginBottom:6}}>
@@ -748,7 +766,7 @@ function WeekPlan({recipes,weekPlan,setWeekPlan,addToPlanTarget,setAddToPlanTarg
   const removeFromDay=(d,mt,i)=>setWeekPlan(wp=>{const u={...wp};u[d]={...u[d]};u[d][mt]=u[d][mt].filter((_,j)=>j!==i);return u;});
   const setPortions=(d,mt,i,val)=>setWeekPlan(wp=>{const u={...wp};u[d]={...u[d]};const e=[...u[d][mt]];const en=typeof e[i]==="object"?{...e[i]}:{rid:e[i],portions:1};en.portions=Math.max(1,parseInt(val)||1);e[i]=en;u[d][mt]=e;return u;});
   const dayNutr=d=>{const t={};ALL_NUTR.forEach(f=>{t[f.key]=0;});MEAL_TYPES.forEach(mt=>getEntries(weekPlan,d,mt).forEach(({rid})=>{const r=recipes.find(x=>x.id===rid);if(r){const n=calcNutr(r.ingredients,r.servings);ALL_NUTR.forEach(f=>{t[f.key]+=n[f.key]||0;});}}));const o={};ALL_NUTR.forEach(f=>{o[f.key]=Math.round(t[f.key]*10)/10;});o.kcal=Math.round(t.kcal);return o;};
-  useEffect(()=>{if(addToPlanTarget){addToDay(day,addToPlanTarget.mealType,addToPlanTarget.id);setAddToPlanTarget(null);}},[addToPlanTarget]);
+  useEffect(()=>{if(addToPlanTarget){const mt=(addToPlanTarget.mealTypes||[addToPlanTarget.mealType])[0]||"Middag";addToDay(day,mt,addToPlanTarget.id);setAddToPlanTarget(null);}},[addToPlanTarget]);
 
   return <div>
     <div style={{display:"flex",gap:5,flexWrap:"wrap",marginBottom:14}}>
@@ -776,7 +794,7 @@ function WeekPlan({recipes,weekPlan,setWeekPlan,addToPlanTarget,setAddToPlanTarg
             </div>
             <button onClick={()=>removeFromDay(day,mt,i)} style={{background:"none",border:"none",cursor:"pointer",color:P.muted,fontSize:13,padding:0}}>×</button>
           </div>;})}
-          <AddMealBtn recipes={recipes.filter(r=>r.mealType===mt)} onAdd={id=>addToDay(day,mt,id)}/>
+          <AddMealBtn recipes={recipes.filter(r=>(r.mealTypes||[r.mealType]).includes(mt))} onAdd={id=>addToDay(day,mt,id)}/>
         </div>
       </div>;})}
     </div>
@@ -1071,7 +1089,7 @@ function App(){
 
   // Filter + sort
   let filtered=recipes.filter(r=>{
-    if(filterMeal!=="Alle"&&r.mealType!==filterMeal)return false;
+    if(filterMeal!=="Alle"&&!(r.mealTypes||[r.mealType]).includes(filterMeal))return false;
     if(filterCat!=="Alle"&&r.category!==filterCat)return false;
     if(filterSort==="Varmmat"&&r.tempType!=="Varmmat")return false;
     if(filterSort==="Kaldmat"&&r.tempType!=="Kaldmat")return false;
