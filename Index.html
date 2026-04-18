@@ -105,7 +105,7 @@ function autoNutr(amt,p,selectedUnit){
   const a=parseFloat(amt)||0;if(!p||a===0)return null;
   let grams=a;
   if(selectedUnit&&selectedUnit!==p.unit){
-    const pu=(p.portionUnits||[]).find(u=>u.label===selectedUnit);
+    const pu=(p.portionUnits||[]).find(u=>u.type===selectedUnit||u.label===selectedUnit);
     if(pu&&parseFloat(pu.grams)>0)grams=a*parseFloat(pu.grams);
   }
   const o={};ALL_NUTR.forEach(f=>{const k=f.key==="kcal"?"kcalPer100":`${f.key}Per100`;o[f.key]=f.key==="kcal"?Math.round((parseFloat(p[k])||0)*grams/100):Math.round((parseFloat(p[k])||0)*grams/100*10)/10;});
@@ -322,30 +322,36 @@ function PantryForm({initial,onSave,onCancel}){
 
       {/* Portion units */}
       <div style={{marginBottom:16}}>
-        <div style={{fontSize:12,fontWeight:700,color:P.text,fontFamily:"Lato",marginBottom:6}}>Egendefinerte porsjoner (valgfritt)</div>
-        <div style={{fontSize:11,color:P.muted,fontFamily:"Lato",marginBottom:8}}>F.eks. «1 stk = 150g», «1 pk = 500g», «1 ts = 5g». Disse kan velges som enhet i oppskrifter.</div>
+        <div style={{fontSize:12,fontWeight:700,color:P.text,fontFamily:"Lato",marginBottom:4}}>Porsjonsstørrelser (valgfritt)</div>
+        <div style={{fontSize:11,color:P.muted,fontFamily:"Lato",marginBottom:10}}>Definer hva f.eks. «1 stk» eller «1 pk» tilsvarer i gram. I oppskrifter kan du da skrive «2 stk» og næringen regnes ut automatisk.</div>
+
         {(it.portionUnits||[]).map((pu,i)=>(
-          <div key={i} style={{display:"flex",gap:8,marginBottom:6,alignItems:"center"}}>
-            <div style={{flex:1}}>
-              <label style={lSt}>Betegnelse</label>
-              <input style={iSt} placeholder="1 stk / 1 pk / 1 ts" value={pu.label}
-                onChange={e=>{const a=[...(it.portionUnits||[])];a[i]={...a[i],label:e.target.value};setF("portionUnits",a);}}/>
+          <div key={i} style={{display:"flex",gap:8,marginBottom:8,alignItems:"center",background:P.bg,borderRadius:10,padding:"8px 10px"}}>
+            <div style={{flex:"0 0 auto"}}>
+              <label style={lSt}>Type</label>
+              <select style={{...iSt,width:90}} value={pu.type||""} onChange={e=>{const a=[...(it.portionUnits||[])];a[i]={...a[i],type:e.target.value,label:`1 ${e.target.value}`};setF("portionUnits",a);}}>
+                <option value="">Velg…</option>
+                {PORTION_TYPES.map(t=><option key={t} value={t}>{t}</option>)}
+              </select>
             </div>
             <div style={{flex:1}}>
-              <label style={lSt}>= gram ({it.unit||"g"})</label>
+              <label style={lSt}>1 {pu.type||"?"} = gram</label>
               <input style={iSt} type="number" placeholder="150" value={pu.grams}
                 onChange={e=>{const a=[...(it.portionUnits||[])];a[i]={...a[i],grams:e.target.value};setF("portionUnits",a);}}/>
             </div>
             <button onClick={()=>setF("portionUnits",(it.portionUnits||[]).filter((_,j)=>j!==i))}
-              style={{background:P.pink,border:"none",borderRadius:6,padding:"4px 9px",cursor:"pointer",fontSize:13,marginTop:14}}>×</button>
+              style={{background:P.pink,border:"none",borderRadius:6,padding:"4px 9px",cursor:"pointer",fontSize:13,marginTop:14,flexShrink:0}}>×</button>
           </div>
         ))}
-        {(it.portionUnits||[]).length<5&&(
-          <button onClick={()=>setF("portionUnits",[...(it.portionUnits||[]),{label:"",grams:""}])}
-            style={{background:P.teal,border:"none",borderRadius:8,padding:"5px 14px",cursor:"pointer",fontFamily:"Lato",fontSize:12,color:P.text}}>
-            + Legg til porsjon
-          </button>
-        )}
+
+        <div style={{display:"flex",gap:6,flexWrap:"wrap",marginTop:6}}>
+          {PORTION_TYPES.filter(t=>!(it.portionUnits||[]).some(p=>p.type===t)).slice(0,6).map(t=>(
+            <button key={t} onClick={()=>setF("portionUnits",[...(it.portionUnits||[]),{type:t,label:`1 ${t}`,grams:""}])}
+              style={{background:P.teal,border:"none",borderRadius:20,padding:"4px 12px",cursor:"pointer",fontFamily:"Lato",fontSize:12,color:P.text}}>
+              + 1 {t}
+            </button>
+          ))}
+        </div>
       </div>
 
       <div style={{display:"flex",gap:10,justifyContent:"flex-end"}}>
@@ -442,7 +448,23 @@ function PantryTab({uid,pantry,setPantry,visibleNutr}){
   </div>;
 }
 
-// ─── RECIPE FORM ──────────────────────────────────────────────────────────────
+const PORTION_TYPES = ["stk","pk","skive","bit","ts","ss","flaske","neve","klype","dl","ml"];
+
+// Isolated so parent re-renders don't cause jumping
+function ServingsField({initial,onCommit}){
+  const ref=useRef();
+  return <div>
+    <label style={lSt}>Porsjoner</label>
+    <input ref={ref} style={{...iSt,width:80}} type="text" inputMode="numeric"
+      defaultValue={String(initial||1)}
+      onKeyDown={e=>{if(!/[0-9]|Backspace|Delete|ArrowLeft|ArrowRight|Tab/.test(e.key))e.preventDefault();}}
+      onChange={e=>{onCommit(parseInt(e.target.value)||1);}}
+      onBlur={e=>{if(!e.target.value||parseInt(e.target.value)<1)e.target.value="1";onCommit(parseInt(e.target.value)||1);}}
+    />
+  </div>;
+}
+
+
 function RecipeForm({initial,pantry,onSave,onCancel}){
   const [r,setR]=useState(()=>initial?JSON.parse(JSON.stringify(initial)):emptyRecipe());
   const setF=(k,v)=>setR(x=>({...x,[k]:v}));
@@ -474,13 +496,11 @@ function RecipeForm({initial,pantry,onSave,onCancel}){
   };
   const nutr=calcNutr(r.ingredients,r.servings||1);
   const imgRef=useRef();
-  const srvRef=useRef();
   const [saveErr,setSaveErr]=useState(false);
 
   const handleSave=()=>{
     if(!r.name.trim()){setSaveErr(true);return;}
-    const srv=parseInt(srvRef.current?.value)||1;
-    onSave({...r,servings:srv});
+    onSave(r);
   };
 
   return <div style={{background:P.card,borderRadius:16,padding:24,border:`1px solid ${P.border}`}}>
@@ -495,14 +515,7 @@ function RecipeForm({initial,pantry,onSave,onCancel}){
       <div><label style={lSt}>Måltidstype</label><select style={iSt} value={r.mealType} onChange={e=>setF("mealType",e.target.value)}>{MEAL_TYPES.map(m=><option key={m}>{m}</option>)}</select></div>
       <div><label style={lSt}>Kategori</label><select style={iSt} value={r.category} onChange={e=>setF("category",e.target.value)}>{CATEGORIES.map(c=><option key={c}>{c}</option>)}</select></div>
       <div><label style={lSt}>Varm / kald</label><select style={iSt} value={r.tempType||"Varmmat"} onChange={e=>setF("tempType",e.target.value)}>{TEMP_TYPES.map(t=><option key={t}>{t}</option>)}</select></div>
-      <div>
-        <label style={lSt}>Porsjoner</label>
-        <input ref={srvRef} style={{...iSt,width:80}} type="text" inputMode="numeric"
-          defaultValue={String(r.servings||1)}
-          onKeyPress={e=>{if(!/[0-9]/.test(e.key))e.preventDefault();}}
-          onBlur={e=>{if(!e.target.value||parseInt(e.target.value)<1)e.target.value="1";}}
-        />
-      </div>
+      <ServingsField initial={r.servings} onCommit={v=>setF("servings",v)}/>
     </div>
 
     {/* Storage info */}
@@ -571,7 +584,7 @@ function RecipeForm({initial,pantry,onSave,onCancel}){
                 if(puOptions.length>0){
                   return <select style={{...iSt,flex:"0 0 68px"}} value={ing.selectedUnit||pp.unit} onChange={e=>handleUnit(idx,e.target.value)}>
                     <option value={pp.unit}>{pp.unit}</option>
-                    {puOptions.map(u=><option key={u.label} value={u.label}>{u.label}</option>)}
+                    {puOptions.map(u=><option key={u.type} value={u.type}>{u.type}</option>)}
                   </select>;
                 }
                 return <input style={{...iSt,flex:"0 0 68px"}} placeholder="g" value={ing.unit} onChange={e=>setIng(idx,"unit",e.target.value)}/>;
@@ -755,7 +768,7 @@ function WeekPlan({recipes,weekPlan,setWeekPlan,addToPlanTarget,setAddToPlanTarg
 // ─── SHOPPING LIST ────────────────────────────────────────────────────────────
 function ShoppingList({recipes,weekPlan,pantry}){
   const buildList=()=>{const items={};DAYS.forEach(d=>MEAL_TYPES.forEach(mt=>getEntries(weekPlan,d,mt).forEach(({rid,portions})=>{const r=recipes.find(x=>x.id===rid);if(!r)return;const mult=(portions||1)/(r.servings||1);r.ingredients.forEach(ing=>{if(!ing.name.trim())return;const pi=ing.pantryId?pantry.find(p=>p.id===ing.pantryId):null;let amt=parseFloat(ing.amount)||0;let unit=ing.unit;// Convert portionUnit to grams for shopping list
-if(ing.selectedUnit&&pi&&ing.selectedUnit!==pi.unit){const pu=(pi.portionUnits||[]).find(u=>u.label===ing.selectedUnit);if(pu&&parseFloat(pu.grams)>0){amt=amt*parseFloat(pu.grams);unit=pi.unit||"g";}}const key=`${ing.name.toLowerCase().trim()}__${unit.toLowerCase().trim()}`;if(!items[key]){items[key]={name:ing.name,unit,amount:0,pantryItem:pi};}items[key].amount+=amt*mult;});}))); return Object.values(items).sort((a,b)=>a.name.localeCompare(b.name,"no"));};
+if(ing.selectedUnit&&pi&&ing.selectedUnit!==pi.unit){const pu=(pi.portionUnits||[]).find(u=>u.type===ing.selectedUnit||u.label===ing.selectedUnit);if(pu&&parseFloat(pu.grams)>0){amt=amt*parseFloat(pu.grams);unit=pi.unit||"g";}}const key=`${ing.name.toLowerCase().trim()}__${unit.toLowerCase().trim()}`;if(!items[key]){items[key]={name:ing.name,unit,amount:0,pantryItem:pi};}items[key].amount+=amt*mult;});}))); return Object.values(items).sort((a,b)=>a.name.localeCompare(b.name,"no"));};
   const list=buildList();const [checked,setChecked]=useState({});
   return <div style={{background:P.card,borderRadius:14,border:`1px solid ${P.border}`,padding:20}}>
     <div style={{display:"flex",justifyContent:"space-between",marginBottom:14}}><h3 style={{margin:0,fontFamily:"Playfair Display",color:P.text}}>🛒 Handleliste for uka</h3><span style={{fontSize:11,color:P.muted,fontFamily:"Lato"}}>{list.length} varer</span></div>
