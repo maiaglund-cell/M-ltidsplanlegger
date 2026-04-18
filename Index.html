@@ -580,11 +580,11 @@ function RecipeForm({initial,pantry,onSave,onCancel}){
               <input style={{...iSt,flex:"0 0 68px"}} placeholder="100" value={ing.amount} onChange={e=>handleAmt(idx,e.target.value)}/>
               {(()=>{
                 const pp=ing.pantryId?pantry.find(x=>x.id===ing.pantryId):null;
-                const puOptions=pp?.portionUnits?.filter(u=>u.label&&u.grams)||[];
+                const puOptions=pp?.portionUnits?.filter(u=>(u.type||u.label)&&u.grams)||[];
                 if(puOptions.length>0){
                   return <select style={{...iSt,flex:"0 0 68px"}} value={ing.selectedUnit||pp.unit} onChange={e=>handleUnit(idx,e.target.value)}>
                     <option value={pp.unit}>{pp.unit}</option>
-                    {puOptions.map(u=><option key={u.type} value={u.type}>{u.type}</option>)}
+                    {puOptions.map(u=><option key={u.type||u.label} value={u.type||u.label}>{u.type||u.label}</option>)}
                   </select>;
                 }
                 return <input style={{...iSt,flex:"0 0 68px"}} placeholder="g" value={ing.unit} onChange={e=>setIng(idx,"unit",e.target.value)}/>;
@@ -1136,10 +1136,7 @@ function App(){
 }
 
 const appRoot = ReactDOM.createRoot(document.getElementById("root"));
-appRoot.render(<App/>);
-
-const dropRoot = ReactDOM.createRoot(document.getElementById("dropdown-root"));
-dropRoot.render(<DropdownPortal/>);
+appRoot.render(<><App/><DropdownPortal/></>);
 </script>
 
 </body>
