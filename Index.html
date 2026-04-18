@@ -134,29 +134,34 @@ function NutrBadges({nutr,visibleNutr,compact=false}){
 }
 
 // ─── INGREDIENT AUTOCOMPLETE ─────────────────────────────────────────────────
-// Global dropdown portal mounted once on body
 let __dropdownSetter = null;
+let __dropdownPicking = false; // prevents blur from closing before pick fires
+
 function DropdownPortal(){
-  const [state,setState]=useState(null); // {items, rect, onPick}
+  const [state,setState]=useState(null);
   __dropdownSetter=setState;
   if(!state||!state.items.length)return null;
   const top=state.rect.bottom+window.scrollY+4;
   const left=state.rect.left+window.scrollX;
-  const width=Math.max(state.rect.width,240);
-  return <div
-    style={{position:"absolute",top,left,width,background:P.card,border:`2px solid ${P.tealDk}`,borderRadius:12,zIndex:99999,boxShadow:"0 8px 28px rgba(0,0,0,0.18)",maxHeight:260,overflowY:"auto"}}
-    onTouchStart={e=>e.stopPropagation()}
-  >
+  const width=Math.max(state.rect.width,260);
+  return <div style={{position:"absolute",top,left,width,background:P.card,border:`2px solid ${P.tealDk}`,borderRadius:12,zIndex:99999,boxShadow:"0 8px 32px rgba(0,0,0,0.2)",maxHeight:280,overflowY:"auto"}}>
     {state.items.map(p=>(
       <div key={p.id}
-        onPointerDown={e=>{e.preventDefault();state.onPick(p);setState(null);}}
-        style={{padding:"9px 13px",borderBottom:`1px solid ${P.border}`,display:"flex",gap:9,alignItems:"center",cursor:"pointer",background:"transparent"}}
-        onMouseEnter={e=>e.currentTarget.style.background=P.bg}
-        onMouseLeave={e=>e.currentTarget.style.background="transparent"}
+        onPointerDown={e=>{
+          e.preventDefault();
+          e.stopPropagation();
+          __dropdownPicking=true;
+          state.onPick(p);
+          setState(null);
+          setTimeout(()=>{__dropdownPicking=false;},300);
+        }}
+        style={{padding:"10px 14px",borderBottom:`1px solid ${P.border}`,display:"flex",gap:10,alignItems:"center",cursor:"pointer"}}
+        onPointerEnter={e=>e.currentTarget.style.background=P.bg}
+        onPointerLeave={e=>e.currentTarget.style.background="transparent"}
       >
-        {p.image&&<img src={p.image} style={{width:34,height:34,borderRadius:7,objectFit:"cover",flexShrink:0}} alt=""/>}
+        {p.image&&<img src={p.image} style={{width:36,height:36,borderRadius:8,objectFit:"cover",flexShrink:0}} alt=""/>}
         <div>
-          <div style={{fontFamily:"Lato",fontSize:13,fontWeight:700,color:P.text}}>{p.brandName}</div>
+          <div style={{fontFamily:"Lato",fontSize:14,fontWeight:700,color:P.text}}>{p.brandName}</div>
           {p.genericTag&&<div style={{fontSize:11,color:P.tealDk}}>#{p.genericTag}</div>}
           <div style={{fontSize:10,color:P.muted}}>{p.kcalPer100||"—"} kcal · {p.proteinPer100||"—"}g P · {p.fatPer100||"—"}g F per 100{p.unit}</div>
         </div>
@@ -171,26 +176,16 @@ function IngInput({value,pantry,onChange,onSelect}){
     ? pantry.filter(p=>p.brandName.toLowerCase().includes(value.toLowerCase())||(p.genericTag||"").toLowerCase().includes(value.toLowerCase()))
     : [];
 
-  const showDropdown=()=>{
-    if(!inputRef.current||!matches.length){__dropdownSetter&&__dropdownSetter(null);return;}
+  const updateDropdown=(currentMatches)=>{
+    if(!inputRef.current||!currentMatches.length){__dropdownSetter&&__dropdownSetter(null);return;}
     const rect=inputRef.current.getBoundingClientRect();
-    __dropdownSetter({items:matches,rect,onPick:p=>{onSelect(p);}});
+    __dropdownSetter({items:currentMatches,rect,onPick:p=>{onSelect(p);}});
   };
 
   useEffect(()=>{
-    if(matches.length>0) showDropdown();
+    if(matches.length>0) updateDropdown(matches);
     else __dropdownSetter&&__dropdownSetter(null);
-  },[value,pantry.length]);
-
-  useEffect(()=>{
-    const h=e=>{
-      if(inputRef.current&&!inputRef.current.contains(e.target)){
-        __dropdownSetter&&__dropdownSetter(null);
-      }
-    };
-    document.addEventListener("pointerdown",h,true);
-    return()=>document.removeEventListener("pointerdown",h,true);
-  },[]);
+  },[value]);
 
   return <input
     ref={inputRef}
@@ -198,10 +193,15 @@ function IngInput({value,pantry,onChange,onSelect}){
     placeholder="Ingrediens…"
     value={value}
     onChange={e=>onChange(e.target.value)}
-    onFocus={showDropdown}
-    onBlur={()=>setTimeout(()=>__dropdownSetter&&__dropdownSetter(null),200)}
+    onFocus={()=>updateDropdown(matches)}
+    onBlur={()=>{
+      setTimeout(()=>{
+        if(!__dropdownPicking) __dropdownSetter&&__dropdownSetter(null);
+      },350);
+    }}
     autoComplete="off"
     autoCorrect="off"
+    autoCapitalize="none"
     spellCheck={false}
   />;
 }
@@ -415,20 +415,16 @@ function RecipeForm({initial,pantry,onSave,onCancel}){
   const setIng=(i,k,v)=>{const a=[...r.ingredients];a[i]={...a[i],[k]:v};setF("ingredients",a);};
   const selPantry=(i,p)=>{const a=[...r.ingredients];const au=autoNutr(a[i].amount,p);a[i]={...a[i],name:p.brandName,unit:p.unit,pantryId:p.id};if(au)Object.keys(au).forEach(k=>{a[i][k]=String(au[k]);});setF("ingredients",a);};
   const handleAmt=(i,v)=>{const a=[...r.ingredients];a[i]={...a[i],amount:v};if(a[i].pantryId){const p=pantry.find(x=>x.id===a[i].pantryId);const au=autoNutr(v,p);if(au)Object.keys(au).forEach(k=>{a[i][k]=String(au[k]);});}setF("ingredients",a);};
-  const nutr=calcNutr(r.ingredients,r.servings||1);
+  const nutr=calcNutr(r.ingredients,parseInt(srvText)||1);
   const imgRef=useRef();
   const [saveErr,setSaveErr]=useState(false);
 
-  // Servings stored as string internally to allow clearing, converted on save
   const [srvText,setSrvText]=useState(()=>String(r.servings||1));
 
   const handleSave=()=>{
-    if(!r.name.trim()){setSaveErr(true);setTimeout(()=>setSaveErr(false),2000);return;}
+    if(!r.name.trim()){setSaveErr(true);return;}
     onSave({...r,servings:parseInt(srvText)||1});
   };
-
-  // Column widths — ingrediens column is wider, rest narrower
-  const numCols = ["Kcal","Prot","Fett","M.fett","Karbo","Sukker","Fiber","Salt"];
 
   return <div style={{background:P.card,borderRadius:16,padding:24,border:`1px solid ${P.border}`}}>
     <h3 style={{margin:"0 0 18px",fontFamily:"Playfair Display",color:P.text,fontSize:20}}>{initial?"Rediger oppskrift":"Ny oppskrift"}</h3>
@@ -445,8 +441,8 @@ function RecipeForm({initial,pantry,onSave,onCancel}){
       <div>
         <label style={lSt}>Porsjoner</label>
         <input style={{...iSt,width:80}} type="text" inputMode="numeric" value={srvText}
-          onChange={e=>{const v=e.target.value.replace(/[^0-9]/g,"");setSrvText(v);setF("servings",parseInt(v)||1);}}
-          onBlur={()=>{if(!srvText||parseInt(srvText)<1){setSrvText("1");setF("servings",1);}}}
+          onChange={e=>{const v=e.target.value.replace(/[^0-9]/g,"");setSrvText(v);}}
+          onBlur={()=>{if(!srvText||parseInt(srvText)<1)setSrvText("1");}}
         />
       </div>
     </div>
