@@ -448,7 +448,7 @@ function PantryTab({uid,pantry,setPantry,visibleNutr}){
   </div>;
 }
 
-const PORTION_TYPES = ["stk","pk","skive","bit","ts","ss","flaske","neve","klype","dl","ml","bukett","fedd","spray","porsjon"];
+const PORTION_TYPES = ["stk","pk","skive","bit","ts","ss","flaske","neve","klype","dl","ml","bukett","fedd","sprayer","porsjon"];
 
 // Isolated so parent re-renders don't cause jumping
 function ServingsField({initial,onCommit}){
@@ -945,7 +945,7 @@ function ProfileTab({user,profile,setProfile,recipes,visibleNutr,setVisibleNutr}
         <div style={{marginBottom:12}}><label style={lSt}>Kallenavn</label><input style={iSt} value={displayName} onChange={e=>setDisplayName(e.target.value)} placeholder="Ditt navn"/></div>
         <div style={{marginBottom:12}}>
           <label style={lSt}>Brukernavn</label>
-          <div style={{display:"flex",alignItems:"center",gap:0,border:`1.5px solid ${usernameErr??"#ef5350":P.border}`,borderRadius:8,overflow:"hidden",background:P.card}}>
+          <div style={{display:"flex",alignItems:"center",gap:0,border:`1.5px solid ${usernameErr?"#ef5350":P.border}`,borderRadius:8,overflow:"hidden",background:P.card}}>
             <span style={{padding:"6px 8px",fontFamily:"Lato",fontSize:13,color:P.tealDk,fontWeight:700,background:P.teal,borderRight:`1px solid ${P.border}`}}>@</span>
             <input style={{...iSt,border:"none",borderRadius:0,flex:1}} value={username}
               onChange={e=>{const v=e.target.value.replace(/\s/g,"");setUsername(v);setUsernameErr(validateUsername(v));}}
