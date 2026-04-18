@@ -668,7 +668,7 @@ function RecipeDetail({recipe,pantry,visibleNutr,onClose,onEdit,onDelete,onAddTo
           <div style={{fontFamily:"Playfair Display",fontSize:15,color:P.text,marginBottom:8}}>Ingredienser</div>
           <div style={{fontFamily:"Lato",fontSize:13,color:P.text}}>
             {recipe.ingredients.filter(i=>i.name.trim()).map((ing,i)=>(
-              <div key={i} style={{display:"flex",gap:12,paddingBottom:3,marginBottom:3}}>
+              <div key={i} style={{display:"flex",gap:12,marginBottom:1}}>
                 <span style={{fontWeight:700,color:P.text,minWidth:70,flexShrink:0}}>{ing.amount} {ing.selectedUnit||ing.unit}</span>
                 <span>{dispName(ing)}</span>
               </div>
@@ -888,16 +888,27 @@ function ProfileTab({user,profile,setProfile,recipes,visibleNutr,setVisibleNutr}
   const [editing,setEditing]=useState(false);
   const [gender,setGender]=useState(profile?.gender||"");
   const [displayName,setDisplayName]=useState(user.displayName||"");
+  const [username,setUsername]=useState(profile?.username||"");
+  const [usernameErr,setUsernameErr]=useState("");
   const [localAvatar,setLocalAvatar]=useState(profile?.avatarBase64||null);
   const memberDate=profile?.createdAt?new Date(profile.createdAt).toLocaleDateString("nb-NO",{year:"numeric",month:"long",day:"numeric"}):"—";
   const avatarRef=useRef();
 
+  const validateUsername=(v)=>{
+    if(!v)return "";
+    if(!/^[a-zA-Z0-9._-]{2,30}$/.test(v))return "Kun bokstaver, tall, punktum, bindestrek og understrek. 2–30 tegn.";
+    return "";
+  };
+
   const save=async()=>{
-    const updated={...profile,gender,displayName,avatarBase64:localAvatar};
+    const err=validateUsername(username);
+    if(err){setUsernameErr(err);return;}
+    const updated={...profile,gender,displayName,username,avatarBase64:localAvatar};
     await setDoc(doc(db,"users",user.uid),updated,{merge:true});
     try{await updateProfile(user,{displayName});}catch{}
     setProfile(updated);
     setEditing(false);
+    setUsernameErr("");
   };
 
   const toggleNutr=async(key)=>{
@@ -920,6 +931,7 @@ function ProfileTab({user,profile,setProfile,recipes,visibleNutr,setVisibleNutr}
         </div>
         <div>
           <div style={{fontFamily:"Playfair Display",fontSize:17,color:P.text}}>{user.displayName||profile?.displayName||user.email}</div>
+          {profile?.username&&<div style={{fontSize:13,color:P.tealDk,fontFamily:"Lato",fontWeight:700}}>@{profile.username}</div>}
           <div style={{fontSize:12,color:P.muted,fontFamily:"Lato"}}>{user.email}</div>
         </div>
       </div>
@@ -931,11 +943,22 @@ function ProfileTab({user,profile,setProfile,recipes,visibleNutr,setVisibleNutr}
 
       {editing?<div>
         <div style={{marginBottom:12}}><label style={lSt}>Kallenavn</label><input style={iSt} value={displayName} onChange={e=>setDisplayName(e.target.value)} placeholder="Ditt navn"/></div>
+        <div style={{marginBottom:12}}>
+          <label style={lSt}>Brukernavn</label>
+          <div style={{display:"flex",alignItems:"center",gap:0,border:`1.5px solid ${usernameErr??"#ef5350":P.border}`,borderRadius:8,overflow:"hidden",background:P.card}}>
+            <span style={{padding:"6px 8px",fontFamily:"Lato",fontSize:13,color:P.tealDk,fontWeight:700,background:P.teal,borderRight:`1px solid ${P.border}`}}>@</span>
+            <input style={{...iSt,border:"none",borderRadius:0,flex:1}} value={username}
+              onChange={e=>{const v=e.target.value.replace(/\s/g,"");setUsername(v);setUsernameErr(validateUsername(v));}}
+              placeholder="ola.nordmann" autoCapitalize="none" autoCorrect="off" spellCheck={false}/>
+          </div>
+          {usernameErr&&<div style={{fontSize:11,color:"#ef5350",fontFamily:"Lato",marginTop:3}}>{usernameErr}</div>}
+          <div style={{fontSize:10,color:P.muted,fontFamily:"Lato",marginTop:3}}>Bokstaver, tall, punktum, bindestrek, understrek. Vises som «Delt av @brukernavn» på oppskrifter.</div>
+        </div>
         <div style={{marginBottom:12}}><label style={lSt}>Kjønn</label>
           <select style={iSt} value={gender} onChange={e=>setGender(e.target.value)}><option value="">— Velg —</option>{GENDERS.map(g=><option key={g}>{g}</option>)}</select>
         </div>
         <div style={{display:"flex",gap:8,marginTop:12}}>
-          <button onClick={()=>setEditing(false)} style={{flex:1,background:P.border,border:"none",borderRadius:10,padding:"8px 0",cursor:"pointer",fontFamily:"Lato",color:P.text}}>Avbryt</button>
+          <button onClick={()=>{setEditing(false);setUsernameErr("");}} style={{flex:1,background:P.border,border:"none",borderRadius:10,padding:"8px 0",cursor:"pointer",fontFamily:"Lato",color:P.text}}>Avbryt</button>
           <button onClick={save} style={{flex:1,background:P.tealDk,border:"none",borderRadius:10,padding:"8px 0",cursor:"pointer",fontFamily:"Lato",color:"#fff",fontWeight:700}}>Lagre</button>
         </div>
       </div>:<div>
@@ -1030,8 +1053,8 @@ function App(){
   },[weekPlan,user]);
 
   const saveRecipe=async(r)=>{
-    const name=profile?.displayName||user.displayName||user.email||"";
-    const data={...r,authorName:r.authorName||name};
+    const handle=profile?.username?`@${profile.username}`:(profile?.displayName||user.displayName||user.email||"");
+    const data={...r,authorName:r.authorName||handle};
     if(editingRecipe) await updateDoc(doc(db,"users",user.uid,"recipes",r.id),data);
     else await addDoc(collection(db,"users",user.uid,"recipes"),data);
     setShowForm(false);setEditingRecipe(null);
