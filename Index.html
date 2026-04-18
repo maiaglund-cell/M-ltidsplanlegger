@@ -92,7 +92,8 @@ const PANTRY_CATEGORIES = [
 const emptyWeekPlan = () => Object.fromEntries(DAYS.map(d=>[d,Object.fromEntries(MEAL_TYPES.map(m=>[m,[]]))]));
 const emptyIng = () => ({name:"",amount:"",unit:"",kcal:"",protein:"",fat:"",saturated:"",carbs:"",sugar:"",fiber:"",salt:"",pantryId:null});
 const emptyRecipe = () => ({name:"",category:"Kaloriunderskudd",mealType:"Middag",tempType:"Varmmat",servings:1,ingredients:[emptyIng()],steps:[""],image:null,canFreeze:false,fridgeDays:"",freezeDays:"",needsCold:false,favorite:false});
-const emptyPantry = () => ({brandName:"",genericTag:"",unit:"g",pantryCategory:"Annet",kcalPer100:"",proteinPer100:"",fatPer100:"",saturatedPer100:"",carbsPer100:"",sugarPer100:"",fiberPer100:"",saltPer100:"",allergens:[],notes:"",image:null,favorite:false});
+const emptyPantry = () => ({brandName:"",genericTag:"",unit:"g",pantryCategory:"Annet",kcalPer100:"",proteinPer100:"",fatPer100:"",saturatedPer100:"",carbsPer100:"",sugarPer100:"",fiberPer100:"",saltPer100:"",allergens:[],notes:"",image:null,favorite:false,portionUnits:[]});
+// portionUnits: [{label:"1 stk", grams:"150"}, {label:"1 pk", grams:"500"}, {label:"1 ts", grams:"5"}]
 
 function calcNutr(ings,srv=1){
   const t={};ALL_NUTR.forEach(f=>{t[f.key]=0;});
@@ -100,9 +101,14 @@ function calcNutr(ings,srv=1){
   const o={};ALL_NUTR.forEach(f=>{o[f.key]=Math.round(t[f.key]/(srv||1)*10)/10;});
   o.kcal=Math.round(t.kcal/(srv||1));return o;
 }
-function autoNutr(amt,p){
+function autoNutr(amt,p,selectedUnit){
   const a=parseFloat(amt)||0;if(!p||a===0)return null;
-  const o={};ALL_NUTR.forEach(f=>{const k=f.key==="kcal"?"kcalPer100":`${f.key}Per100`;o[f.key]=f.key==="kcal"?Math.round((parseFloat(p[k])||0)*a/100):Math.round((parseFloat(p[k])||0)*a/100*10)/10;});
+  let grams=a;
+  if(selectedUnit&&selectedUnit!==p.unit){
+    const pu=(p.portionUnits||[]).find(u=>u.label===selectedUnit);
+    if(pu&&parseFloat(pu.grams)>0)grams=a*parseFloat(pu.grams);
+  }
+  const o={};ALL_NUTR.forEach(f=>{const k=f.key==="kcal"?"kcalPer100":`${f.key}Per100`;o[f.key]=f.key==="kcal"?Math.round((parseFloat(p[k])||0)*grams/100):Math.round((parseFloat(p[k])||0)*grams/100*10)/10;});
   return o;
 }
 function getEntries(wp,d,mt){return(wp[d]?.[mt]||[]).map(e=>typeof e==="object"?e:{rid:e,portions:1});}
@@ -314,6 +320,34 @@ function PantryForm({initial,onSave,onCancel}){
 
       <div style={{marginBottom:16}}><label style={lSt}>Notater</label><input style={iSt} value={it.notes} onChange={e=>setF("notes",e.target.value)} placeholder="F.eks. TINE, Oatly…"/></div>
 
+      {/* Portion units */}
+      <div style={{marginBottom:16}}>
+        <div style={{fontSize:12,fontWeight:700,color:P.text,fontFamily:"Lato",marginBottom:6}}>Egendefinerte porsjoner (valgfritt)</div>
+        <div style={{fontSize:11,color:P.muted,fontFamily:"Lato",marginBottom:8}}>F.eks. «1 stk = 150g», «1 pk = 500g», «1 ts = 5g». Disse kan velges som enhet i oppskrifter.</div>
+        {(it.portionUnits||[]).map((pu,i)=>(
+          <div key={i} style={{display:"flex",gap:8,marginBottom:6,alignItems:"center"}}>
+            <div style={{flex:1}}>
+              <label style={lSt}>Betegnelse</label>
+              <input style={iSt} placeholder="1 stk / 1 pk / 1 ts" value={pu.label}
+                onChange={e=>{const a=[...(it.portionUnits||[])];a[i]={...a[i],label:e.target.value};setF("portionUnits",a);}}/>
+            </div>
+            <div style={{flex:1}}>
+              <label style={lSt}>= gram ({it.unit||"g"})</label>
+              <input style={iSt} type="number" placeholder="150" value={pu.grams}
+                onChange={e=>{const a=[...(it.portionUnits||[])];a[i]={...a[i],grams:e.target.value};setF("portionUnits",a);}}/>
+            </div>
+            <button onClick={()=>setF("portionUnits",(it.portionUnits||[]).filter((_,j)=>j!==i))}
+              style={{background:P.pink,border:"none",borderRadius:6,padding:"4px 9px",cursor:"pointer",fontSize:13,marginTop:14}}>×</button>
+          </div>
+        ))}
+        {(it.portionUnits||[]).length<5&&(
+          <button onClick={()=>setF("portionUnits",[...(it.portionUnits||[]),{label:"",grams:""}])}
+            style={{background:P.teal,border:"none",borderRadius:8,padding:"5px 14px",cursor:"pointer",fontFamily:"Lato",fontSize:12,color:P.text}}>
+            + Legg til porsjon
+          </button>
+        )}
+      </div>
+
       <div style={{display:"flex",gap:10,justifyContent:"flex-end"}}>
         <button onClick={onCancel} style={{background:P.border,border:"none",borderRadius:10,padding:"7px 18px",cursor:"pointer",fontFamily:"Lato",color:P.text}}>Avbryt</button>
         <button onClick={()=>it.brandName.trim()&&onSave(it)} style={{background:P.tealDk,border:"none",borderRadius:10,padding:"7px 22px",cursor:"pointer",fontFamily:"Lato",color:"#fff",fontWeight:700}}>Lagre</button>
@@ -413,17 +447,40 @@ function RecipeForm({initial,pantry,onSave,onCancel}){
   const [r,setR]=useState(()=>initial?JSON.parse(JSON.stringify(initial)):emptyRecipe());
   const setF=(k,v)=>setR(x=>({...x,[k]:v}));
   const setIng=(i,k,v)=>{const a=[...r.ingredients];a[i]={...a[i],[k]:v};setF("ingredients",a);};
-  const selPantry=(i,p)=>{const a=[...r.ingredients];const au=autoNutr(a[i].amount,p);a[i]={...a[i],name:p.brandName,unit:p.unit,pantryId:p.id};if(au)Object.keys(au).forEach(k=>{a[i][k]=String(au[k]);});setF("ingredients",a);};
-  const handleAmt=(i,v)=>{const a=[...r.ingredients];a[i]={...a[i],amount:v};if(a[i].pantryId){const p=pantry.find(x=>x.id===a[i].pantryId);const au=autoNutr(v,p);if(au)Object.keys(au).forEach(k=>{a[i][k]=String(au[k]);});}setF("ingredients",a);};
-  const nutr=calcNutr(r.ingredients,parseInt(srvText)||1);
+  const selPantry=(i,p)=>{
+    const a=[...r.ingredients];
+    const au=autoNutr(a[i].amount,p,a[i].selectedUnit);
+    a[i]={...a[i],name:p.brandName,unit:p.unit,pantryId:p.id,selectedUnit:p.unit};
+    if(au)Object.keys(au).forEach(k=>{a[i][k]=String(au[k]);});
+    setF("ingredients",a);
+  };
+  const handleAmt=(i,v)=>{
+    const a=[...r.ingredients];a[i]={...a[i],amount:v};
+    if(a[i].pantryId){
+      const p=pantry.find(x=>x.id===a[i].pantryId);
+      const au=autoNutr(v,p,a[i].selectedUnit);
+      if(au)Object.keys(au).forEach(k=>{a[i][k]=String(au[k]);});
+    }
+    setF("ingredients",a);
+  };
+  const handleUnit=(i,v)=>{
+    const a=[...r.ingredients];a[i]={...a[i],selectedUnit:v,unit:v};
+    if(a[i].pantryId&&a[i].amount){
+      const p=pantry.find(x=>x.id===a[i].pantryId);
+      const au=autoNutr(a[i].amount,p,v);
+      if(au)Object.keys(au).forEach(k=>{a[i][k]=String(au[k]);});
+    }
+    setF("ingredients",a);
+  };
+  const nutr=calcNutr(r.ingredients,r.servings||1);
   const imgRef=useRef();
+  const srvRef=useRef();
   const [saveErr,setSaveErr]=useState(false);
-
-  const [srvText,setSrvText]=useState(()=>String(r.servings||1));
 
   const handleSave=()=>{
     if(!r.name.trim()){setSaveErr(true);return;}
-    onSave({...r,servings:parseInt(srvText)||1});
+    const srv=parseInt(srvRef.current?.value)||1;
+    onSave({...r,servings:srv});
   };
 
   return <div style={{background:P.card,borderRadius:16,padding:24,border:`1px solid ${P.border}`}}>
@@ -440,9 +497,10 @@ function RecipeForm({initial,pantry,onSave,onCancel}){
       <div><label style={lSt}>Varm / kald</label><select style={iSt} value={r.tempType||"Varmmat"} onChange={e=>setF("tempType",e.target.value)}>{TEMP_TYPES.map(t=><option key={t}>{t}</option>)}</select></div>
       <div>
         <label style={lSt}>Porsjoner</label>
-        <input style={{...iSt,width:80}} type="text" inputMode="numeric" value={srvText}
-          onChange={e=>{const v=e.target.value.replace(/[^0-9]/g,"");setSrvText(v);}}
-          onBlur={()=>{if(!srvText||parseInt(srvText)<1)setSrvText("1");}}
+        <input ref={srvRef} style={{...iSt,width:80}} type="text" inputMode="numeric"
+          defaultValue={String(r.servings||1)}
+          onKeyPress={e=>{if(!/[0-9]/.test(e.key))e.preventDefault();}}
+          onBlur={e=>{if(!e.target.value||parseInt(e.target.value)<1)e.target.value="1";}}
         />
       </div>
     </div>
@@ -507,7 +565,17 @@ function RecipeForm({initial,pantry,onSave,onCancel}){
             {/* Scrollable numeric columns */}
             <div style={{overflowX:"auto",flex:1,display:"flex",gap:4}}>
               <input style={{...iSt,flex:"0 0 68px"}} placeholder="100" value={ing.amount} onChange={e=>handleAmt(idx,e.target.value)}/>
-              <input style={{...iSt,flex:"0 0 68px"}} placeholder="g" value={ing.unit} onChange={e=>setIng(idx,"unit",e.target.value)}/>
+              {(()=>{
+                const pp=ing.pantryId?pantry.find(x=>x.id===ing.pantryId):null;
+                const puOptions=pp?.portionUnits?.filter(u=>u.label&&u.grams)||[];
+                if(puOptions.length>0){
+                  return <select style={{...iSt,flex:"0 0 68px"}} value={ing.selectedUnit||pp.unit} onChange={e=>handleUnit(idx,e.target.value)}>
+                    <option value={pp.unit}>{pp.unit}</option>
+                    {puOptions.map(u=><option key={u.label} value={u.label}>{u.label}</option>)}
+                  </select>;
+                }
+                return <input style={{...iSt,flex:"0 0 68px"}} placeholder="g" value={ing.unit} onChange={e=>setIng(idx,"unit",e.target.value)}/>;
+              })()}
               {["kcal","protein","fat","saturated","carbs","sugar","fiber","salt"].map(k=>(
                 <input key={k} style={{...iSt,flex:"0 0 68px",background:linked?"#EEF8EE":P.card}} type="number" placeholder="—" value={ing[k]} onChange={e=>setIng(idx,k,e.target.value)}/>
               ))}
@@ -686,7 +754,8 @@ function WeekPlan({recipes,weekPlan,setWeekPlan,addToPlanTarget,setAddToPlanTarg
 
 // ─── SHOPPING LIST ────────────────────────────────────────────────────────────
 function ShoppingList({recipes,weekPlan,pantry}){
-  const buildList=()=>{const items={};DAYS.forEach(d=>MEAL_TYPES.forEach(mt=>getEntries(weekPlan,d,mt).forEach(({rid,portions})=>{const r=recipes.find(x=>x.id===rid);if(!r)return;const mult=(portions||1)/(r.servings||1);r.ingredients.forEach(ing=>{if(!ing.name.trim())return;const key=`${ing.name.toLowerCase().trim()}__${ing.unit.toLowerCase().trim()}`;if(!items[key]){const pi=ing.pantryId?pantry.find(p=>p.id===ing.pantryId):null;items[key]={name:ing.name,unit:ing.unit,amount:0,pantryItem:pi};}items[key].amount+=(parseFloat(ing.amount)||0)*mult;});}))); return Object.values(items).sort((a,b)=>a.name.localeCompare(b.name,"no"));};
+  const buildList=()=>{const items={};DAYS.forEach(d=>MEAL_TYPES.forEach(mt=>getEntries(weekPlan,d,mt).forEach(({rid,portions})=>{const r=recipes.find(x=>x.id===rid);if(!r)return;const mult=(portions||1)/(r.servings||1);r.ingredients.forEach(ing=>{if(!ing.name.trim())return;const pi=ing.pantryId?pantry.find(p=>p.id===ing.pantryId):null;let amt=parseFloat(ing.amount)||0;let unit=ing.unit;// Convert portionUnit to grams for shopping list
+if(ing.selectedUnit&&pi&&ing.selectedUnit!==pi.unit){const pu=(pi.portionUnits||[]).find(u=>u.label===ing.selectedUnit);if(pu&&parseFloat(pu.grams)>0){amt=amt*parseFloat(pu.grams);unit=pi.unit||"g";}}const key=`${ing.name.toLowerCase().trim()}__${unit.toLowerCase().trim()}`;if(!items[key]){items[key]={name:ing.name,unit,amount:0,pantryItem:pi};}items[key].amount+=amt*mult;});}))); return Object.values(items).sort((a,b)=>a.name.localeCompare(b.name,"no"));};
   const list=buildList();const [checked,setChecked]=useState({});
   return <div style={{background:P.card,borderRadius:14,border:`1px solid ${P.border}`,padding:20}}>
     <div style={{display:"flex",justifyContent:"space-between",marginBottom:14}}><h3 style={{margin:0,fontFamily:"Playfair Display",color:P.text}}>🛒 Handleliste for uka</h3><span style={{fontSize:11,color:P.muted,fontFamily:"Lato"}}>{list.length} varer</span></div>
