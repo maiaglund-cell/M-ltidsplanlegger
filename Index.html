@@ -16,6 +16,7 @@
 </head>
 <body>
 <div id="root"></div>
+<div id="dropdown-root" style="position:absolute;top:0;left:0;width:0;height:0;overflow:visible;z-index:99999;pointer-events:auto;"></div>
 
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
@@ -133,61 +134,76 @@ function NutrBadges({nutr,visibleNutr,compact=false}){
 }
 
 // ─── INGREDIENT AUTOCOMPLETE ─────────────────────────────────────────────────
+// Global dropdown portal mounted once on body
+let __dropdownSetter = null;
+function DropdownPortal(){
+  const [state,setState]=useState(null); // {items, rect, onPick}
+  __dropdownSetter=setState;
+  if(!state||!state.items.length)return null;
+  const top=state.rect.bottom+window.scrollY+4;
+  const left=state.rect.left+window.scrollX;
+  const width=Math.max(state.rect.width,240);
+  return <div
+    style={{position:"absolute",top,left,width,background:P.card,border:`2px solid ${P.tealDk}`,borderRadius:12,zIndex:99999,boxShadow:"0 8px 28px rgba(0,0,0,0.18)",maxHeight:260,overflowY:"auto"}}
+    onTouchStart={e=>e.stopPropagation()}
+  >
+    {state.items.map(p=>(
+      <div key={p.id}
+        onPointerDown={e=>{e.preventDefault();state.onPick(p);setState(null);}}
+        style={{padding:"9px 13px",borderBottom:`1px solid ${P.border}`,display:"flex",gap:9,alignItems:"center",cursor:"pointer",background:"transparent"}}
+        onMouseEnter={e=>e.currentTarget.style.background=P.bg}
+        onMouseLeave={e=>e.currentTarget.style.background="transparent"}
+      >
+        {p.image&&<img src={p.image} style={{width:34,height:34,borderRadius:7,objectFit:"cover",flexShrink:0}} alt=""/>}
+        <div>
+          <div style={{fontFamily:"Lato",fontSize:13,fontWeight:700,color:P.text}}>{p.brandName}</div>
+          {p.genericTag&&<div style={{fontSize:11,color:P.tealDk}}>#{p.genericTag}</div>}
+          <div style={{fontSize:10,color:P.muted}}>{p.kcalPer100||"—"} kcal · {p.proteinPer100||"—"}g P · {p.fatPer100||"—"}g F per 100{p.unit}</div>
+        </div>
+      </div>
+    ))}
+  </div>;
+}
+
 function IngInput({value,pantry,onChange,onSelect}){
-  const [open,setOpen]=useState(false);
-  const ref=useRef();
+  const inputRef=useRef();
   const matches=value.trim()
-    ? pantry.filter(p=>
-        p.brandName.toLowerCase().includes(value.toLowerCase()) ||
-        (p.genericTag||"").toLowerCase().includes(value.toLowerCase())
-      )
+    ? pantry.filter(p=>p.brandName.toLowerCase().includes(value.toLowerCase())||(p.genericTag||"").toLowerCase().includes(value.toLowerCase()))
     : [];
 
+  const showDropdown=()=>{
+    if(!inputRef.current||!matches.length){__dropdownSetter&&__dropdownSetter(null);return;}
+    const rect=inputRef.current.getBoundingClientRect();
+    __dropdownSetter({items:matches,rect,onPick:p=>{onSelect(p);}});
+  };
+
   useEffect(()=>{
-    const h=e=>{if(ref.current&&!ref.current.contains(e.target))setOpen(false);};
-    document.addEventListener("mousedown",h);
-    return()=>document.removeEventListener("mousedown",h);
+    if(matches.length>0) showDropdown();
+    else __dropdownSetter&&__dropdownSetter(null);
+  },[value,pantry.length]);
+
+  useEffect(()=>{
+    const h=e=>{
+      if(inputRef.current&&!inputRef.current.contains(e.target)){
+        __dropdownSetter&&__dropdownSetter(null);
+      }
+    };
+    document.addEventListener("pointerdown",h,true);
+    return()=>document.removeEventListener("pointerdown",h,true);
   },[]);
 
-  return <div ref={ref} style={{position:"relative",zIndex:200}}>
-    <input
-      style={iSt}
-      placeholder="Ingrediens…"
-      value={value}
-      onChange={e=>{onChange(e.target.value);setOpen(true);}}
-      onFocus={()=>setOpen(true)}
-      autoComplete="off"
-      autoCorrect="off"
-      spellCheck={false}
-    />
-    {open&&matches.length>0&&(
-      <div style={{
-        position:"absolute",top:"100%",left:0,right:0,marginTop:2,
-        background:P.card,border:`1.5px solid ${P.tealDk}`,
-        borderRadius:12,zIndex:9999,
-        boxShadow:"0 6px 24px rgba(0,0,0,0.15)",
-        maxHeight:240,overflowY:"auto",
-        minWidth:220,
-      }}>
-        {matches.map(p=>(
-          <div
-            key={p.id}
-            onPointerDown={e=>{e.preventDefault();onSelect(p);setOpen(false);}}
-            style={{padding:"9px 13px",cursor:"pointer",borderBottom:`1px solid ${P.border}`,display:"flex",gap:9,alignItems:"center"}}
-            onMouseEnter={e=>e.currentTarget.style.background=P.bg}
-            onMouseLeave={e=>e.currentTarget.style.background="transparent"}
-          >
-            {p.image&&<img src={p.image} style={{width:34,height:34,borderRadius:7,objectFit:"cover",flexShrink:0}} alt=""/>}
-            <div>
-              <div style={{fontFamily:"Lato",fontSize:13,fontWeight:700,color:P.text}}>{p.brandName}</div>
-              {p.genericTag&&<div style={{fontSize:11,color:P.tealDk}}>#{p.genericTag}</div>}
-              <div style={{fontSize:10,color:P.muted}}>{p.kcalPer100||"—"} kcal · {p.proteinPer100||"—"}g P · {p.fatPer100||"—"}g F per 100{p.unit}</div>
-            </div>
-          </div>
-        ))}
-      </div>
-    )}
-  </div>;
+  return <input
+    ref={inputRef}
+    style={iSt}
+    placeholder="Ingrediens…"
+    value={value}
+    onChange={e=>onChange(e.target.value)}
+    onFocus={showDropdown}
+    onBlur={()=>setTimeout(()=>__dropdownSetter&&__dropdownSetter(null),200)}
+    autoComplete="off"
+    autoCorrect="off"
+    spellCheck={false}
+  />;
 }
 
 // ─── BARCODE SCANNER ─────────────────────────────────────────────────────────
@@ -399,19 +415,40 @@ function RecipeForm({initial,pantry,onSave,onCancel}){
   const setIng=(i,k,v)=>{const a=[...r.ingredients];a[i]={...a[i],[k]:v};setF("ingredients",a);};
   const selPantry=(i,p)=>{const a=[...r.ingredients];const au=autoNutr(a[i].amount,p);a[i]={...a[i],name:p.brandName,unit:p.unit,pantryId:p.id};if(au)Object.keys(au).forEach(k=>{a[i][k]=String(au[k]);});setF("ingredients",a);};
   const handleAmt=(i,v)=>{const a=[...r.ingredients];a[i]={...a[i],amount:v};if(a[i].pantryId){const p=pantry.find(x=>x.id===a[i].pantryId);const au=autoNutr(v,p);if(au)Object.keys(au).forEach(k=>{a[i][k]=String(au[k]);});}setF("ingredients",a);};
-  const nutr=calcNutr(r.ingredients,r.servings);
+  const nutr=calcNutr(r.ingredients,r.servings||1);
   const imgRef=useRef();
-  const cols="2fr 0.8fr 0.7fr 0.7fr 0.7fr 0.7fr 0.7fr 0.7fr 0.7fr 0.7fr 0.7fr 26px";
+  const [saveErr,setSaveErr]=useState(false);
+
+  // Servings stored as string internally to allow clearing, converted on save
+  const [srvText,setSrvText]=useState(()=>String(r.servings||1));
+
+  const handleSave=()=>{
+    if(!r.name.trim()){setSaveErr(true);setTimeout(()=>setSaveErr(false),2000);return;}
+    onSave({...r,servings:parseInt(srvText)||1});
+  };
+
+  // Column widths — ingrediens column is wider, rest narrower
+  const numCols = ["Kcal","Prot","Fett","M.fett","Karbo","Sukker","Fiber","Salt"];
 
   return <div style={{background:P.card,borderRadius:16,padding:24,border:`1px solid ${P.border}`}}>
     <h3 style={{margin:"0 0 18px",fontFamily:"Playfair Display",color:P.text,fontSize:20}}>{initial?"Rediger oppskrift":"Ny oppskrift"}</h3>
 
     <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:18}}>
-      <div style={{gridColumn:"1/-1"}}><label style={lSt}>Navn</label><input style={iSt} value={r.name} onChange={e=>setF("name",e.target.value)} placeholder="F.eks. Kyllingsuppe"/></div>
+      <div style={{gridColumn:"1/-1"}}>
+        <label style={lSt}>Navn</label>
+        <input style={{...iSt,border:`1.5px solid ${saveErr?"#ef5350":P.border}`}} value={r.name} onChange={e=>{setF("name",e.target.value);setSaveErr(false);}} placeholder="F.eks. Kyllingsuppe"/>
+        {saveErr&&<div style={{fontSize:11,color:"#ef5350",fontFamily:"Lato",marginTop:3}}>Skriv inn navn på oppskriften</div>}
+      </div>
       <div><label style={lSt}>Måltidstype</label><select style={iSt} value={r.mealType} onChange={e=>setF("mealType",e.target.value)}>{MEAL_TYPES.map(m=><option key={m}>{m}</option>)}</select></div>
       <div><label style={lSt}>Kategori</label><select style={iSt} value={r.category} onChange={e=>setF("category",e.target.value)}>{CATEGORIES.map(c=><option key={c}>{c}</option>)}</select></div>
       <div><label style={lSt}>Varm / kald</label><select style={iSt} value={r.tempType||"Varmmat"} onChange={e=>setF("tempType",e.target.value)}>{TEMP_TYPES.map(t=><option key={t}>{t}</option>)}</select></div>
-      <div><label style={lSt}>Porsjoner</label><input style={{...iSt,width:80}} type="number" min={1} value={r.servings} onChange={e=>{const v=e.target.value;setF("servings",v===""?"":parseInt(v)||1);}} onBlur={e=>{if(!e.target.value||parseInt(e.target.value)<1)setF("servings",1);}}/></div>
+      <div>
+        <label style={lSt}>Porsjoner</label>
+        <input style={{...iSt,width:80}} type="text" inputMode="numeric" value={srvText}
+          onChange={e=>{const v=e.target.value.replace(/[^0-9]/g,"");setSrvText(v);setF("servings",parseInt(v)||1);}}
+          onBlur={()=>{if(!srvText||parseInt(srvText)<1){setSrvText("1");setF("servings",1);}}}
+        />
+      </div>
     </div>
 
     {/* Storage info */}
@@ -444,27 +481,51 @@ function RecipeForm({initial,pantry,onSave,onCancel}){
       </div>}
     </div>
 
-    {/* Ingredients */}
+    {/* Ingredients — redesigned so dropdown isn't clipped */}
     <div style={{marginBottom:18}}>
-      <div style={{display:"flex",justifyContent:"space-between",marginBottom:8}}><h4 style={{margin:0,fontFamily:"Playfair Display",color:P.text}}>Ingredienser</h4><button onClick={()=>setF("ingredients",[...r.ingredients,emptyIng()])} style={{background:P.green,border:"none",borderRadius:8,padding:"4px 12px",cursor:"pointer",fontFamily:"Lato",color:P.text,fontSize:12}}>+ Legg til</button></div>
-      <div style={{overflowX:"auto",overflowY:"visible",paddingBottom:4}}>
-        <div style={{display:"grid",gridTemplateColumns:cols,gap:4,marginBottom:4,minWidth:900}}>{["Ingrediens","Mengde","Enhet","Kcal","Prot","Fett","M.fett","Karbo","Sukker","Fiber","Salt",""].map((h,i)=><div key={i} style={{fontSize:10,color:P.muted,fontFamily:"Lato"}}>{h}</div>)}</div>
-        {r.ingredients.map((ing,i)=>{const linked=ing.pantryId?pantry.find(p=>p.id===ing.pantryId):null;return <div key={i} style={{marginBottom:5}}>
-          <div style={{display:"grid",gridTemplateColumns:cols,gap:4,minWidth:900}}>
-            <IngInput value={ing.name} pantry={pantry} onChange={v=>{
-              const a=[...r.ingredients];
-              a[i]={...a[i],name:v,pantryId:v?a[i].pantryId:null};
-              setF("ingredients",a);
-            }} onSelect={p=>selPantry(i,p)}/>
-            <input style={iSt} placeholder="100" value={ing.amount} onChange={e=>handleAmt(i,e.target.value)}/>
-            <input style={iSt} placeholder="g" value={ing.unit} onChange={e=>setIng(i,"unit",e.target.value)}/>
-            {["kcal","protein","fat","saturated","carbs","sugar","fiber","salt"].map(k=><input key={k} style={{...iSt,background:linked?"#EEF8EE":P.card}} type="number" placeholder="—" value={ing[k]} onChange={e=>setIng(i,k,e.target.value)}/>)}
-            <button onClick={()=>setF("ingredients",r.ingredients.filter((_,j)=>j!==i))} style={{background:P.pink,border:"none",borderRadius:6,cursor:"pointer",fontSize:13}}>×</button>
-          </div>
-          {linked&&<div style={{fontSize:10,color:P.tealDk,fontFamily:"Lato",marginTop:1,marginLeft:2}}>🔗 #{linked.genericTag}</div>}
-        </div>;})}
+      <div style={{display:"flex",justifyContent:"space-between",marginBottom:8}}>
+        <h4 style={{margin:0,fontFamily:"Playfair Display",color:P.text}}>Ingredienser</h4>
+        <button onClick={()=>setF("ingredients",[...r.ingredients,emptyIng()])} style={{background:P.green,border:"none",borderRadius:8,padding:"4px 12px",cursor:"pointer",fontFamily:"Lato",color:P.text,fontSize:12}}>+ Legg til</button>
       </div>
-      <div style={{display:"flex",gap:7,marginTop:10,flexWrap:"wrap",alignItems:"center"}}><span style={{fontSize:11,color:P.muted,fontFamily:"Lato"}}>Per porsjon:</span><NutrBadges nutr={nutr} visibleNutr={Object.fromEntries(ALL_NUTR.map(f=>[f.key,true]))}/></div>
+
+      {/* Header row */}
+      <div style={{display:"flex",gap:4,marginBottom:4,minWidth:0}}>
+        <div style={{flex:"0 0 180px",fontSize:10,color:P.muted,fontFamily:"Lato"}}>Ingrediens</div>
+        <div style={{overflowX:"auto",flex:1,display:"flex",gap:4}}>
+          {["Mengde","Enhet","Kcal","Prot","Fett","M.fett","Karbo","Sukker","Fiber","Salt",""].map((h,i)=>(
+            <div key={i} style={{flex:"0 0 68px",fontSize:10,color:P.muted,fontFamily:"Lato"}}>{h}</div>
+          ))}
+        </div>
+      </div>
+
+      {r.ingredients.map((ing,idx)=>{
+        const linked=ing.pantryId?pantry.find(p=>p.id===ing.pantryId):null;
+        return <div key={idx} style={{marginBottom:6}}>
+          <div style={{display:"flex",gap:4,alignItems:"flex-start"}}>
+            {/* Ingredient name — NOT inside overflow:auto so dropdown shows */}
+            <div style={{flex:"0 0 180px",position:"relative",zIndex:100+idx}}>
+              <IngInput value={ing.name} pantry={pantry}
+                onChange={v=>{const a=[...r.ingredients];a[idx]={...a[idx],name:v,pantryId:v?a[idx].pantryId:null};setF("ingredients",a);}}
+                onSelect={p=>selPantry(idx,p)}/>
+            </div>
+            {/* Scrollable numeric columns */}
+            <div style={{overflowX:"auto",flex:1,display:"flex",gap:4}}>
+              <input style={{...iSt,flex:"0 0 68px"}} placeholder="100" value={ing.amount} onChange={e=>handleAmt(idx,e.target.value)}/>
+              <input style={{...iSt,flex:"0 0 68px"}} placeholder="g" value={ing.unit} onChange={e=>setIng(idx,"unit",e.target.value)}/>
+              {["kcal","protein","fat","saturated","carbs","sugar","fiber","salt"].map(k=>(
+                <input key={k} style={{...iSt,flex:"0 0 68px",background:linked?"#EEF8EE":P.card}} type="number" placeholder="—" value={ing[k]} onChange={e=>setIng(idx,k,e.target.value)}/>
+              ))}
+              <button onClick={()=>setF("ingredients",r.ingredients.filter((_,j)=>j!==idx))} style={{flex:"0 0 28px",background:P.pink,border:"none",borderRadius:6,cursor:"pointer",fontSize:13}}>×</button>
+            </div>
+          </div>
+          {linked&&<div style={{fontSize:10,color:P.tealDk,fontFamily:"Lato",marginTop:2,marginLeft:2}}>🔗 #{linked.genericTag}</div>}
+        </div>;
+      })}
+
+      <div style={{display:"flex",gap:7,marginTop:10,flexWrap:"wrap",alignItems:"center"}}>
+        <span style={{fontSize:11,color:P.muted,fontFamily:"Lato"}}>Per porsjon:</span>
+        <NutrBadges nutr={nutr} visibleNutr={Object.fromEntries(ALL_NUTR.map(f=>[f.key,true]))}/>
+      </div>
     </div>
 
     {/* Steps */}
@@ -479,7 +540,7 @@ function RecipeForm({initial,pantry,onSave,onCancel}){
 
     <div style={{display:"flex",gap:10,justifyContent:"flex-end"}}>
       <button onClick={onCancel} style={{background:P.border,border:"none",borderRadius:10,padding:"7px 18px",cursor:"pointer",fontFamily:"Lato",color:P.text}}>Avbryt</button>
-      <button onClick={()=>r.name.trim()&&onSave(r)} style={{background:P.greenDk,border:"none",borderRadius:10,padding:"7px 22px",cursor:"pointer",fontFamily:"Lato",color:"#fff",fontWeight:700}}>Lagre</button>
+      <button onClick={handleSave} style={{background:P.greenDk,border:"none",borderRadius:10,padding:"7px 22px",cursor:"pointer",fontFamily:"Lato",color:"#fff",fontWeight:700}}>Lagre</button>
     </div>
   </div>;
 }
@@ -953,7 +1014,11 @@ function App(){
   </div>;
 }
 
-ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
+const appRoot = ReactDOM.createRoot(document.getElementById("root"));
+appRoot.render(<App/>);
+
+const dropRoot = ReactDOM.createRoot(document.getElementById("dropdown-root"));
+dropRoot.render(<DropdownPortal/>);
 </script>
 
 </body>
