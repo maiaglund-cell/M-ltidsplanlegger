@@ -91,7 +91,7 @@ const PANTRY_CATEGORIES = [
 
 const emptyWeekPlan = () => Object.fromEntries(DAYS.map(d=>[d,Object.fromEntries(MEAL_TYPES.map(m=>[m,[]]))]));
 const emptyIng = () => ({name:"",amount:"",unit:"",kcal:"",protein:"",fat:"",saturated:"",carbs:"",sugar:"",fiber:"",salt:"",pantryId:null});
-const emptyRecipe = () => ({name:"",category:"Kaloriunderskudd",mealType:"Middag",tempType:"Varmmat",servings:1,ingredients:[emptyIng()],steps:[""],notes:"",image:null,canFreeze:false,fridgeDays:"",freezeDays:"",needsCold:false,favorite:false});
+const emptyRecipe = () => ({name:"",category:"Kaloriunderskudd",mealTypes:["Middag"],mealType:"Middag",tempType:"Varmmat",servings:1,ingredients:[emptyIng()],steps:[""],notes:"",image:null,canFreeze:false,fridgeDays:"",freezeDays:"",needsCold:false,favorite:false});
 const emptyPantry = () => ({brandName:"",genericTag:"",unit:"g",pantryCategory:"Annet",kcalPer100:"",proteinPer100:"",fatPer100:"",saturatedPer100:"",carbsPer100:"",sugarPer100:"",fiberPer100:"",saltPer100:"",allergens:[],notes:"",image:null,favorite:false,portionUnits:[]});
 // portionUnits: [{label:"1 stk", grams:"150"}, {label:"1 pk", grams:"500"}, {label:"1 ts", grams:"5"}]
 
@@ -304,12 +304,105 @@ function PantryForm({initial,onSave,onCancel}){
         {it.nutrPhotoRef&&<span style={{fontSize:11,color:P.tealDk,marginTop:6,display:"block",fontFamily:"Lato"}}>✓ Bilde lagret som referanse</span>}
       </div>
 
+
       <div style={{marginBottom:14}}>
         <div style={{fontSize:11,color:P.muted,fontFamily:"Lato",marginBottom:6}}>Næringsverdier per 100 {it.unit||"g"}</div>
         <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:8}}>
-          {[["Kcal","kcalPer100"],["Fett g","fatPer100"],["Mettet fett g","saturatedPer100"],["Karbohydrater g","carbsPer100"],["Sukkerarter g","sugarPer100"],["Protein g","proteinPer100"],["Salt g","saltPer100"],["Fiber g","fiberPer100"]].map(([l,k])=><div key={k}><label style={lSt}>{l}</label><input style={iSt} type="number" placeholder="—" value={it[k]} onChange={e=>setF(k,e.target.value)}/></div>)}
+          {[["Kcal","kcalPer100"],["Fett g","fatPer100"],["Mettet fett g","saturatedPer100"],["Karbohydrater g","carbsPer100"],["Sukkerarter g","sugarPer100"],["Protein g","proteinPer100"],["Salt g","saltPer100"],["Fiber g","fiberPer100"]].map(([l,k])=><div key={k}><label style={lSt}>{l}</label><input style={iSt} type="number" placeholder="—" value={it[k]||""} onChange={e=>setF(k,e.target.value)}/></div>)}
         </div>
       </div>
+
+      {/* Extra nutrients */}
+      <div style={{marginBottom:14}}>
+        <button onClick={()=>setF("_showExtra",!it._showExtra)} style={{background:it._showExtra?P.purple:P.bg,border:`1.5px solid ${it._showExtra?P.purpleDk:P.border}`,borderRadius:10,padding:"6px 14px",cursor:"pointer",fontFamily:"Lato",fontSize:12,color:P.text,marginBottom:it._showExtra?12:0}}>
+          {it._showExtra?"▲ Skjul ekstra næringsstoffer":"+ Flere næringsstoffer"}
+        </button>
+        {it._showExtra&&<div>
+          {[
+            {group:"Generelt",fields:[
+              ["Alkohol g","alcoholPer100"],
+              ["Vann g","waterPer100"],
+            ]},
+            {group:"Karbohydrater",fields:[
+              ["Stivelse g","starchPer100"],
+            ]},
+            {group:"Fettsyrer",fields:[
+              ["Transfettsyrer g","transFatPer100"],
+              ["Enumettede fettsyrer g","monounsatPer100"],
+              ["Flerumettede fettsyrer g","polyunsatPer100"],
+              ["Omega-3 g","omega3Per100"],
+              ["Omega-6 g","omega6Per100"],
+              ["Kolesterol mg","cholesterolPer100"],
+            ]},
+            {group:"Mettede fettsyrer",fields:[
+              ["Laurinsyre (C12:0) g","lauricPer100"],
+              ["Myristinsyre (C14:0) g","myristicPer100"],
+              ["Palmitinsyre (C16:0) g","palmiticPer100"],
+              ["Stearinsyre (C18:0) g","stearicPer100"],
+            ]},
+            {group:"Enumettede fettsyrer",fields:[
+              ["Palmitioleinsyre (C16:1) g","palmitoleicPer100"],
+              ["Oljesyre (C18:1) g","oleicPer100"],
+            ]},
+            {group:"Flerumettede fettsyrer",fields:[
+              ["Linolsyre (C18:2, n-6) g","linoleicPer100"],
+              ["Alfalinolensyre (C18:3, n-3) g","alaFatPer100"],
+              ["Eikosatriensyre (C20:3) g","eicosatrienoicPer100"],
+              ["DGLA (C20:3, n-6) g","dglaPer100"],
+              ["Eikosatetraensyre (C20:4) g","eicosatetraPer100"],
+              ["Arakidonsyre (C20:4, n-6) g","arachidonicPer100"],
+              ["EPA (C20:5, n-3) g","epaPer100"],
+              ["DPA (C22:5, n-3) g","dpaPer100"],
+              ["DHA (C22:6, n-3) g","dhaPer100"],
+            ]},
+            {group:"Vitaminer (fettløselige)",fields:[
+              ["Vitamin A (RAE) µg","vitARaePer100"],
+              ["Vitamin A (RE) µg","vitARePer100"],
+              ["  Retinol µg","retinolPer100"],
+              ["  Betakaroten µg","betacarotenePer100"],
+              ["Vitamin D µg","vitDPer100"],
+              ["Vitamin E (alfa-tokoferol) mg","vitEPer100"],
+            ]},
+            {group:"Vitaminer (vannløselige)",fields:[
+              ["Vitamin B1 (tiamin) mg","vitB1Per100"],
+              ["Vitamin B2 (riboflavin) mg","vitB2Per100"],
+              ["Vitamin B3 (niacin) mg","vitB3Per100"],
+              ["Niacinekvivalenter mg","niacinEqPer100"],
+              ["Vitamin B6 (pyridoksin) mg","vitB6Per100"],
+              ["Vitamin B9 (folat) µg","vitB9Per100"],
+              ["Vitamin B12 (kobalamin) µg","vitB12Per100"],
+              ["Vitamin C (askorbinsyre) mg","vitCPer100"],
+            ]},
+            {group:"Mineraler",fields:[
+              ["Kalsium (Ca) mg","calciumPer100"],
+              ["Natrium (Na) mg","sodiumPer100"],
+              ["Kalium (K) mg","potassiumPer100"],
+              ["Magnesium (Mg) mg","magnesiumPer100"],
+              ["Fosfor (P) mg","phosphorusPer100"],
+            ]},
+            {group:"Sporstoffer",fields:[
+              ["Jern (Fe) mg","ironPer100"],
+              ["Selen (Se) µg","seleniumPer100"],
+              ["Sink (Zn) mg","zincPer100"],
+              ["Kobber (Cu) mg","copperPer100"],
+              ["Jod (I) µg","iodinePer100"],
+            ]},
+          ].map(({group,fields})=>(
+            <div key={group} style={{marginBottom:14}}>
+              <div style={{fontSize:11,fontWeight:700,color:P.tealDk,fontFamily:"Lato",marginBottom:6,paddingBottom:3,borderBottom:`1px solid ${P.teal}`}}>{group}</div>
+              <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:8}}>
+                {fields.map(([l,k])=>(
+                  <div key={k}>
+                    <label style={{...lSt,fontSize:10}}>{l}</label>
+                    <input style={iSt} type="number" placeholder="—" value={it[k]||""} onChange={e=>setF(k,e.target.value)}/>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>}
+      </div>
+
 
       <div style={{marginBottom:14}}>
         <div style={{fontSize:11,color:P.muted,fontFamily:"Lato",marginBottom:6}}>Allergener</div>
@@ -500,7 +593,8 @@ function RecipeForm({initial,pantry,onSave,onCancel}){
 
   const handleSave=()=>{
     if(!r.name.trim()){setSaveErr(true);return;}
-    onSave(r);
+    const types=r.mealTypes||(r.mealType?[r.mealType]:["Middag"]);
+    onSave({...r,mealTypes:types,mealType:types[0]});
   };
 
   return <div style={{background:P.card,borderRadius:16,padding:24,border:`1px solid ${P.border}`}}>
@@ -516,11 +610,11 @@ function RecipeForm({initial,pantry,onSave,onCancel}){
         <label style={lSt}>Måltidstype (velg én eller flere)</label>
         <div style={{display:"flex",gap:6,flexWrap:"wrap",marginTop:2}}>
           {MEAL_TYPES.map(m=>{
-            const sel=(r.mealTypes||[r.mealType]).includes(m);
+            const sel=(r.mealTypes||(r.mealType?[r.mealType]:["Middag"])).includes(m);
             return <button key={m} type="button" onClick={()=>{
-              const cur=r.mealTypes||(r.mealType?[r.mealType]:[]);
-              const next=sel?cur.filter(x=>x!==m):[...cur,m];
-              setF("mealTypes",next.length?next:cur);
+              const cur=r.mealTypes||(r.mealType?[r.mealType]:["Middag"]);
+              const next=sel?(cur.length>1?cur.filter(x=>x!==m):cur):[...cur,m];
+              setF("mealTypes",next);
             }} style={{background:sel?MC[m]?.bg||P.purple:P.bg,border:`1.5px solid ${sel?MC[m]?.border||P.purpleDk:P.border}`,borderRadius:20,padding:"5px 13px",cursor:"pointer",fontFamily:"Lato",fontSize:12,color:P.text,fontWeight:sel?700:400}}>
               {MC[m]?.icon} {m}
             </button>;
